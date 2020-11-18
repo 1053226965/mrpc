@@ -1,0 +1,14 @@
+include iostream
+
+struct request
+{
+
+}
+
+struct respone
+{
+
+}
+
+rpc say_hello(request req, respone rsp)
+
