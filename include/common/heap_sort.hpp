@@ -27,8 +27,8 @@ namespace ds
       template<typename ARRAY>
       void add_array(ARRAY&& vs);
 
-      bool empty() const noexcept { return array_.empty(); }
-      T const& top() const noexcept { return array_[0]; }
+      bool empty() const noexcept { return _array.empty(); }
+      T const& top() const noexcept { return _array[0]; }
       T pop() noexcept;
 
     private:
@@ -37,7 +37,7 @@ namespace ds
       size_t parent_index(size_t i) noexcept { return (i - 1) >> 1; }
 
 
-      std::vector<T, ALLOCATOR> array_;
+      std::vector<T, ALLOCATOR> _array;
     };
 
 
@@ -45,7 +45,7 @@ namespace ds
       typename CMP,
       typename ALLOCATOR>
     inline heap_sort_t<T, CMP, ALLOCATOR>::heap_sort_t() :
-      array_()
+      _array()
     {
     }
 
@@ -55,12 +55,12 @@ namespace ds
     template<typename VT, typename>
     inline void heap_sort_t<T, CMP, ALLOCATOR>::add(VT&& v)
     {
-      array_.push_back(std::forward<VT>(v));
-      size_t index = array_.size() - 1;
+      _array.push_back(std::forward<VT>(v));
+      size_t index = _array.size() - 1;
       for(size_t pindex = parent_index(index); 
-        index > 0 && cmp_type()(array_[index], array_[pindex]);
+        index > 0 && cmp_type()(_array[index], _array[pindex]);
         pindex = parent_index(index)) {
-          std::swap(array_[index], array_[pindex]);
+          std::swap(_array[index], _array[pindex]);
           index = pindex;
       }
     }
@@ -81,27 +81,27 @@ namespace ds
       typename ALLOCATOR>
     inline T heap_sort_t<T, CMP, ALLOCATOR>::pop() noexcept
     {
-      std::swap(array_[0], array_.back());
-      rmove_reference_type ret = std::move(array_.back());
-      array_.pop_back();
+      std::swap(_array[0], _array.back());
+      rmove_reference_type ret = std::move(_array.back());
+      _array.pop_back();
 
       size_t index = 0;
-      while (index < array_.size()) {
+      while (index < _array.size()) {
         size_t li = left_child_index(index);
-        if (li >= array_.size()) break;
+        if (li >= _array.size()) break;
         size_t ri = right_child_index(index);
-        if (ri < array_.size()) {
-          if (cmp_type()(array_[li], array_[ri])) {
-            std::swap(array_[index], array_[li]);
+        if (ri < _array.size()) {
+          if (cmp_type()(_array[li], _array[ri])) {
+            std::swap(_array[index], _array[li]);
             index = li;
           }
           else {
-            std::swap(array_[index], array_[ri]);
+            std::swap(_array[index], _array[ri]);
             index = ri;
           }
         }
-        else if(cmp_type()(array_[li], array_[index])) {
-          std::swap(array_[index], array_[li]);
+        else if(cmp_type()(_array[li], _array[index])) {
+          std::swap(_array[index], _array[li]);
           index = li;
         }
         else {

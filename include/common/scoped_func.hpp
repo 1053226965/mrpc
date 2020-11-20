@@ -14,16 +14,16 @@ namespace mrpc
 
     template<typename FUNC2>
     scoped_func_t(FUNC2&& func) noexcept :
-      func_(std::forward<FUNC2>(func))
+      _func(std::forward<FUNC2>(func))
     {}
 
     ~scoped_func_t() noexcept
     {
-      func_();
+      _func();
     }
 
   private:
-    function_type func_;
+    function_type _func;
   };
 
   template<typename FUNC>

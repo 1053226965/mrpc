@@ -17,7 +17,7 @@ namespace mrpc
         std::experimental::coroutine_handle<> await_suspend(
           std::experimental::coroutine_handle<promise_t> coroutine) noexcept
         {
-          return coroutine.promise().continue_coro_ ? coroutine.promise().continue_coro_ : noop_coroutine();
+          return coroutine.promise()._continue_coro ? coroutine.promise()._continue_coro : noop_coroutine();
         }
 
         void await_resume() noexcept {}
@@ -34,9 +34,9 @@ namespace mrpc
         return final_waitable{};
       }
 
-      void set_continue(std::experimental::coroutine_handle<> continue_coro) { continue_coro_ = continue_coro; }
+      void set_continue(std::experimental::coroutine_handle<> continue_coro) { _continue_coro = continue_coro; }
 
-      std::experimental::coroutine_handle<> continue_coro_;
+      std::experimental::coroutine_handle<> _continue_coro;
     };
 
     template<typename T>
@@ -46,8 +46,8 @@ namespace mrpc
       using value_type = std::remove_reference_t<T>;
 
       task_promose_t() noexcept :
-        type_(result_type::empty),
-        excetion_ptr_(nullptr) {}
+        _type(result_type::empty),
+        _excetion_ptr(nullptr) {}
 
       ~task_promose_t() noexcept {}
 
@@ -55,34 +55,34 @@ namespace mrpc
       
       void unhandled_exception() noexcept 
       {
-        ::new (static_cast<void*>(std::addressof(excetion_ptr_))) std::exception_ptr(std::current_exception());
-        type_ = result_type::exception;
+        ::new (static_cast<void*>(std::addressof(_excetion_ptr))) std::exception_ptr(std::current_exception());
+        _type = result_type::exception;
       }
 
       template<typename VT, typename = std::enable_if_t<std::is_convertible_v<VT&&, T>>>
       void return_value(VT&& value) noexcept
       {
-        ::new (static_cast<void*>(std::addressof(value_))) value_type(std::forward<VT>(value));
-        type_ = result_type::value;
+        ::new (static_cast<void*>(std::addressof(_value))) value_type(std::forward<VT>(value));
+        _type = result_type::value;
       }
 
       auto result() noexcept
       {
-        if (type_ == result_type::exception) {
-          std::rethrow_exception(excetion_ptr_);
+        if (_type == result_type::exception) {
+          std::rethrow_exception(_excetion_ptr);
         }
-        M_ASSERT(type_ == result_type::value);
-        return std::forward<T>(value_);
+        M_ASSERT(_type == result_type::value);
+        return std::forward<T>(_value);
       }
 
     private:
       enum class result_type {empty, value, exception};
 
-      result_type type_;
+      result_type _type;
       union 
       {
-        std::exception_ptr excetion_ptr_;
-        value_type value_;
+        std::exception_ptr _excetion_ptr;
+        value_type _value;
       };
     };
 
@@ -98,20 +98,20 @@ namespace mrpc
 
       void unhandled_exception() noexcept 
       {
-        excetion_ptr_ = std::current_exception();
+        _excetion_ptr = std::current_exception();
       }
 
       void return_void() noexcept{}
 
       void result() noexcept 
       {
-        if (excetion_ptr_) {
-          std::rethrow_exception(excetion_ptr_);
+        if (_excetion_ptr) {
+          std::rethrow_exception(_excetion_ptr);
         }
       }
 
     private:
-      std::exception_ptr excetion_ptr_;
+      std::exception_ptr _excetion_ptr;
     };
   }
 
@@ -125,28 +125,28 @@ namespace mrpc
     using coroutine_handle_type = std::experimental::coroutine_handle<promise_type>;
 
     task_t(coroutine_handle_type coroutine) noexcept
-      :coroutine_(coroutine) {}
+      :_coroutine(coroutine) {}
 
     task_t(task_t&& t) noexcept:
-      coroutine_(t.coroutine_) 
+      _coroutine(t._coroutine) 
     {
-      t.coroutine_ = nullptr;
+      t._coroutine = nullptr;
     }
 
     ~task_t() 
     {
-      if (coroutine_)
-        coroutine_.destroy();
+      if (_coroutine)
+        _coroutine.destroy();
     }
 
     task_t& operator=(task_t&& t) noexcept
     {
-      coroutine_ = t.coroutine_;
-      t.coroutine_ = nullptr;
+      _coroutine = t._coroutine;
+      t._coroutine = nullptr;
     }
 
-    bool is_done() noexcept { return coroutine_.done(); }
-    coroutine_handle_type get_handle() noexcept { return coroutine_; }
+    bool is_done() noexcept { return _coroutine.done(); }
+    coroutine_handle_type get_handle() noexcept { return _coroutine; }
 
     auto operator co_await() noexcept 
     {
@@ -157,22 +157,22 @@ namespace mrpc
         std::experimental::coroutine_handle<> await_suspend(
           std::experimental::coroutine_handle<> coroutine) noexcept
         {
-          task_.coroutine_.promise().continue_coro_ = coroutine;
-          return task_.coroutine_;
+          _task._coroutine.promise()._continue_coro = coroutine;
+          return _task._coroutine;
         }
 
         RET await_resume() noexcept 
         { 
-          return task_.coroutine_.promise().result();
+          return _task._coroutine.promise().result();
         }
 
-        task_t& task_;
+        task_t& _task;
       };
 
       return await_table{ *this };
     }
 
   private:
-    coroutine_handle_type coroutine_;
+    coroutine_handle_type _coroutine;
   };
 }

@@ -18,7 +18,7 @@ namespace mrpc
       using value_type = std::optional<std::remove_reference_t<T>>;
 
       sync_promise_t() noexcept:
-        promise_()
+        _promise()
       {}
 
       auto initial_suspend() noexcept
@@ -34,12 +34,12 @@ namespace mrpc
       template<typename VT>
       void return_value(VT&& value) noexcept
       {
-        promise_.set_value(std::forward<VT>(value));
+        _promise.set_value(std::forward<VT>(value));
       }
 
       void unhandled_exception() noexcept
       {
-        promise_.set_exception(std::current_exception());
+        _promise.set_exception(std::current_exception());
       }
 
       auto get_return_object() noexcept
@@ -49,11 +49,11 @@ namespace mrpc
 
       std::future<value_type> get_future() noexcept 
       { 
-        return promise_.get_future(); 
+        return _promise.get_future(); 
       }
 
     private:
-      std::promise<value_type> promise_;
+      std::promise<value_type> _promise;
     };
 
     template<>
@@ -61,7 +61,7 @@ namespace mrpc
     {
     public:
       sync_promise_t() noexcept :
-        promise_()
+        _promise()
       {}
 
       auto initial_suspend() noexcept
@@ -76,12 +76,12 @@ namespace mrpc
 
       void return_void() noexcept 
       { 
-        promise_.set_value();
+        _promise.set_value();
       }
 
       void unhandled_exception() noexcept
       {
-        promise_.set_exception(std::current_exception());
+        _promise.set_exception(std::current_exception());
       }
 
       auto get_return_object() noexcept
@@ -91,11 +91,11 @@ namespace mrpc
 
       std::future<void> get_future() noexcept
       {
-        return promise_.get_future();
+        return _promise.get_future();
       }
 
     private:
-      std::promise<void> promise_;
+      std::promise<void> _promise;
     };
 
     template<typename T>
@@ -106,31 +106,31 @@ namespace mrpc
       using promise_type = sync_promise_t<T> ;
 
       sync_wait_task_t(std::experimental::coroutine_handle<promise_type> coro) :
-        coroutine_(coro),
-        future_(coro.promise().get_future())
+        _coroutine(coro),
+        _future(coro.promise().get_future())
       {
       }
 
       void start()
       {
-        coroutine_.resume();
+        _coroutine.resume();
       }
 
       auto wait_result()
       {
         if constexpr (std::is_void_v<value_type>)
         {
-          future_.get();
+          _future.get();
         }
         else
         {
-          return std::move(future_.get().value());
+          return std::move(_future.get().value());
         }
       }
 
     private:
-      std::experimental::coroutine_handle<> coroutine_;
-      std::future<value_type> future_;
+      std::experimental::coroutine_handle<> _coroutine;
+      std::future<value_type> _future;
     };
   }
 

@@ -21,10 +21,10 @@ namespace mrpc
     bool set_ready();
 
   private:
-    std::atomic_uintptr_t state_;
+    std::atomic_uintptr_t _state;
   };
 
-  inline lf_notifier_t::lf_notifier_t() noexcept : state_(state_t::not_ready)
+  inline lf_notifier_t::lf_notifier_t() noexcept : _state(state_t::not_ready)
   {
   }
 
@@ -34,7 +34,7 @@ namespace mrpc
 
   inline bool lf_notifier_t::notify_on_ready(io_state_t &io_state)
   {
-    uintptr_t state = state_.load(std::memory_order_acquire);
+    uintptr_t state = _state.load(std::memory_order_acquire);
     while (true)
     {
       switch (state)
@@ -42,7 +42,7 @@ namespace mrpc
       case state_t::not_ready:
       {
         uintptr_t sv = reinterpret_cast<uintptr_t>(&io_state) | state_t::addr;
-        if (state_.compare_exchange_weak(state,
+        if (_state.compare_exchange_weak(state,
                                          sv,
                                          std::memory_order_release,
                                          std::memory_order_relaxed))
@@ -53,7 +53,7 @@ namespace mrpc
       }
       case state_t::ready:
       {
-        if (state_.compare_exchange_weak(state,
+        if (_state.compare_exchange_weak(state,
                                          state_t::not_ready,
                                          std::memory_order_relaxed,
                                          std::memory_order_relaxed))
@@ -73,14 +73,14 @@ namespace mrpc
 
   inline bool lf_notifier_t::set_ready()
   {
-    uintptr_t state = state_.load(std::memory_order_acquire);
+    uintptr_t state = _state.load(std::memory_order_acquire);
     while (true)
     {
       switch (state)
       {
       case state_t::not_ready:
       {
-        if (state_.compare_exchange_weak(state,
+        if (_state.compare_exchange_weak(state,
                                          state_t::ready,
                                          std::memory_order_relaxed,
                                          std::memory_order_relaxed))
@@ -97,7 +97,7 @@ namespace mrpc
       {
         if (state & state_t::addr)
         {
-          if (state_.compare_exchange_weak(state,
+          if (_state.compare_exchange_weak(state,
                                            state_t::not_ready,
                                            std::memory_order_acquire,
                                            std::memory_order_relaxed))

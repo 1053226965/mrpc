@@ -16,55 +16,55 @@ namespace mrpc
   {
   public:
     io_context_base_t(size_t concurrencyHint) :
-      io_impl_(concurrencyHint)
+      _io_impl(concurrencyHint)
     {}
 
     auto schedule() {
-      return io_impl_.schedule();
+      return _io_impl.schedule();
     }
 
     void update_next_timeout_point(high_resolution_clock_t::time_point tp) noexcept {
-      io_impl_.update_next_timeout_point(tp);
+      _io_impl.update_next_timeout_point(tp);
     }
 
     error_code process_one(milliseconds_t millisecs) {
-      return io_impl_.process_one(millisecs);
+      return _io_impl.process_one(millisecs);
     }
 
     error_code loop_process() {
-      return io_impl_.loop_process();
+      return _io_impl.loop_process();
     }
 
     error_code add_socket(std::shared_ptr<net::socket_t>& s) {
-      return io_impl_.add_socket(s);
+      return _io_impl.add_socket(s);
     }
 
     error_code rem_socket(std::shared_ptr<net::socket_t>& s) {
-      return io_impl_.rem_socket(s);
+      return _io_impl.rem_socket(s);
     }
 
     HANDLE get_handle() const noexcept {
-      return io_impl_.get_handle();
+      return _io_impl.get_handle();
     }
 
     void wakeup(size_t wakeup_count) {
-      io_impl_.wakeup(wakeup_count);
+      _io_impl.wakeup(wakeup_count);
     }
 
     void stop() {
-      io_impl_.stop();
+      _io_impl.stop();
     }
 
     bool stoped() noexcept {
-      return io_impl_.stoped();
+      return _io_impl.stoped();
     }
 
     void reset() {
-      io_impl_.reset();
+      _io_impl.reset();
     }
 
   private:
-    impl_t io_impl_;
+    impl_t _io_impl;
   };
 
 #ifdef OS_WIN

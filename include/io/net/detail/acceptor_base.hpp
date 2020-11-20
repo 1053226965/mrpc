@@ -13,32 +13,32 @@ namespace mrpc::net::detail
   public:
     acceptor_base_t(io_context_type &io_ctx, endpoint_t const &e);
 
-    io_state_t &get_recv_io_state() { return io_state_; }
-    std::shared_ptr<socket_t> &socket() { return socket_; }
-    void own_socket(socket_t &&s) noexcept { socket_ = std::make_shared<socket_t>(std::move(s)); }
+    io_state_t &get_recv_io_state() { return _io_state; }
+    std::shared_ptr<socket_t> &socket() { return _socket; }
+    void own_socket(socket_t &&s) noexcept { _socket = std::make_shared<socket_t>(std::move(s)); }
     void close() noexcept;
 
 #ifdef OS_WIN
   public:
-    LPFN_ACCEPTEX get_accept_func() { return accept_ex_; }
+    LPFN_ACCEPTEX get_accept_func() { return _accept_ex; }
 
   private:
-    LPFN_ACCEPTEX accept_ex_ = {nullptr};
+    LPFN_ACCEPTEX _accept_ex = {nullptr};
 #endif
 
   private:
-    io_context_type &io_ctx_;
-    std::shared_ptr<socket_t> socket_;
-    io_state_t io_state_;
-    endpoint_t bound_info_;
+    io_context_type &_io_ctx;
+    std::shared_ptr<socket_t> _socket;
+    io_state_t _io_state;
+    endpoint_t _bound_info;
   };
 
   template <typename IO_CONTEXT>
   inline acceptor_base_t<IO_CONTEXT>::acceptor_base_t(
       io_context_type &io_ctx,
-      endpoint_t const &e) : io_ctx_(io_ctx),
-                             io_state_(io_state_t::type_t::accept),
-                             bound_info_(e)
+      endpoint_t const &e) : _io_ctx(io_ctx),
+                             _io_state(io_state_t::type_t::accept),
+                             _bound_info(e)
   {
     socket_t lsocket;
     if (e.is_v4())
@@ -57,14 +57,14 @@ namespace mrpc::net::detail
     if (!lsocket.valid())
     {
       DETAIL_LOG_WARN("[accept] failed to create fd {}", get_sys_error_msg());
-      io_state_.set_error(error_code::INVLIAD);
+      _io_state.set_error(error_code::INVLIAD);
       return;
     }
 
     if (lsocket.bind_addr(e) == error_code::NONE_ERROR &&
         listen(lsocket.handle(), SOMAXCONN) != SOCKET_ERROR)
     {
-      io_state_.set_error(error_code::NONE_ERROR);
+      _io_state.set_error(error_code::NONE_ERROR);
       own_socket(std::move(lsocket));
       if (io_ctx.add_socket(socket()) != error_code::NONE_ERROR)
       {
@@ -82,10 +82,10 @@ namespace mrpc::net::detail
     int status;
     GUID guid = WSAID_ACCEPTEX;
     DWORD ioctl_num_bytes;
-    accept_ex_ = nullptr;
+    _accept_ex = nullptr;
     status =
         WSAIoctl(socket()->handle(), SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid),
-                 &accept_ex_, sizeof(accept_ex_), &ioctl_num_bytes, NULL, NULL);
+                 &_accept_ex, sizeof(_accept_ex), &ioctl_num_bytes, NULL, NULL);
     if (status != 0)
     {
       DWORD errorCode = ::GetLastError();
@@ -100,15 +100,15 @@ namespace mrpc::net::detail
   template <typename IO_CONTEXT>
   inline void acceptor_base_t<IO_CONTEXT>::close() noexcept
   {
-    if (socket_ && socket_->valid())
+    if (_socket && _socket->valid())
     {
-      if(io_ctx_.rem_socket(socket_) != error_code::NONE_ERROR)
+      if(_io_ctx.rem_socket(_socket) != error_code::NONE_ERROR)
       {
         DETAIL_LOG_WARN("[accept] failed to detach fd {} from ioctx", socket()->handle());
       }
-      socket_->close();
+      _socket->close();
 #ifdef OS_GNU_LINUX
-      socket_->ready_to_read(); // wakeup coroutine
+      _socket->ready_to_read(); // wakeup coroutine
 #endif
     }
   }

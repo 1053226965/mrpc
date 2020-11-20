@@ -10,7 +10,7 @@ namespace mrpc::detail
   static uintptr_t wakeup_event = 0;
   static uintptr_t corout_event = 1;
 
-  thread_local high_resolution_clock_t::time_point epoll_t::next_timeout_point_ = high_resolution_clock_t::now();
+  thread_local high_resolution_clock_t::time_point epoll_t::_next_timeout_point = high_resolution_clock_t::now();
 
   bool set_nonblocking(socket_handle_t fd, bool not_blocked)
   {
@@ -37,32 +37,32 @@ namespace mrpc::detail
   }
 
   epoll_t::schedule_awaitable_t::schedule_awaitable_t(epoll_t &epoll) noexcept
-      : epoll_(epoll) {}
+      : _epoll(epoll) {}
 
   void epoll_t::schedule_awaitable_t::await_suspend(std::experimental::coroutine_handle<> handle) noexcept
   {
-    epoll_.schedule_coroutine(handle);
+    _epoll.schedule_coroutine(handle);
   }
 
-  epoll_t::epoll_t(size_t concurrencyHint) : thread_state_(0), event_fd_(-1)
+  epoll_t::epoll_t(size_t concurrencyHint) : _thread_state(0), _event_fd(-1)
   {
     /* FD_CLOEXEC, close-on-exec */
-    epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
-    if (epoll_fd_ == -1)
+    _epoll_fd = epoll_create1(EPOLL_CLOEXEC);
+    if (_epoll_fd == -1)
     {
       throw_system_error("create epoll");
     }
 
-    // if (pipe2(wakeup_fds_, O_CLOEXEC) == -1)
+    // if (pipe2(_wakeup_fds, O_CLOEXEC) == -1)
     // {
     //   throw_system_error("create pipe");
     // }
-    // set_nonblocking(wakeup_fds_[0], true);
-    // set_nonblocking(wakeup_fds_[1], true);
+    // set_nonblocking(_wakeup_fds[0], true);
+    // set_nonblocking(_wakeup_fds[1], true);
     // epoll_event ev;
     // ev.events = static_cast<uint32_t>(EPOLLIN | EPOLLET);
-    // ev.data.ptr = &wakeup_fds_[0];
-    // if (!add_fd(wakeup_fds_[0], ev))
+    // ev.data.ptr = &_wakeup_fds[0];
+    // if (!add_fd(_wakeup_fds[0], ev))
     // {
     //   throw_system_error("add wakeup fd");
     // }
@@ -72,15 +72,15 @@ namespace mrpc::detail
 
   epoll_t::~epoll_t()
   {
-    if (event_fd_ != -1)
+    if (_event_fd != -1)
     {
-      close(event_fd_);
-      event_fd_ = -1;
+      close(_event_fd);
+      _event_fd = -1;
     }
-    if (epoll_fd_ != -1)
+    if (_epoll_fd != -1)
     {
-      close(epoll_fd_);
-      epoll_fd_ = -1;
+      close(_epoll_fd);
+      _epoll_fd = -1;
     }
   }
 
@@ -91,7 +91,7 @@ namespace mrpc::detail
 
   void epoll_t::update_next_timeout_point(high_resolution_clock_t::time_point tp) noexcept
   {
-    next_timeout_point_ = tp;
+    _next_timeout_point = tp;
   }
 
   error_code epoll_t::process_one(milliseconds_t millisecs)
@@ -124,15 +124,15 @@ namespace mrpc::detail
     ev.events = static_cast<uint32_t>(EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP);
     ev.data.ptr = (void *)s.get();
 
-    socket_refs_mtx_.lock();
-    socket_refs_[s->handle()] = s;
-    socket_refs_mtx_.unlock();
+    _socket_refs_mtx.lock();
+    _socket_refs[s->handle()] = s;
+    _socket_refs_mtx.unlock();
 
     if (s->handle() == INVAILD_SOCKET || !add_fd(s->handle(), ev))
     {
-      socket_refs_mtx_.lock();
-      socket_refs_[s->handle()] = nullptr;
-      socket_refs_mtx_.unlock();
+      _socket_refs_mtx.lock();
+      _socket_refs[s->handle()] = nullptr;
+      _socket_refs_mtx.unlock();
       return error_code::SYSTEM_ERROR;
     }
     DETAIL_LOG_INFO("socket addr {} {}", (void *)s.get(), s->handle());
@@ -152,7 +152,7 @@ namespace mrpc::detail
     uint64_t add_v = wakeup_count;
     do
     {
-      sc = ::write(event_fd_, &add_v, sizeof(add_v));
+      sc = ::write(_event_fd, &add_v, sizeof(add_v));
     } while (sc < 0 && errno == EINTR);
     if(sc < 0 && errno == EAGAIN)
     {
@@ -162,7 +162,7 @@ namespace mrpc::detail
 
   void epoll_t::stop()
   {
-    uint32_t state = thread_state_.fetch_or(1, std::memory_order_relaxed);
+    uint32_t state = _thread_state.fetch_or(1, std::memory_order_relaxed);
     if((state & 1) == 0)
     {
       wakeup(state / 2);
@@ -171,13 +171,13 @@ namespace mrpc::detail
 
   void epoll_t::reset()
   {
-    thread_state_.fetch_and((~static_cast<uint32_t>(1)), std::memory_order_relaxed);
+    _thread_state.fetch_and((~static_cast<uint32_t>(1)), std::memory_order_relaxed);
     reset_event_fd();
   }
 
   bool epoll_t::add_fd(socket_handle_t fd, epoll_event &ev) noexcept
   {
-    if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &ev) != 0)
+    if (epoll_ctl(_epoll_fd, EPOLL_CTL_ADD, fd, &ev) != 0)
     {
       return false;
     }
@@ -188,7 +188,7 @@ namespace mrpc::detail
   {
     epoll_event ev_fd;
     memset(&ev_fd, 0, sizeof(ev_fd));
-    if (epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, &ev_fd) != 0)
+    if (epoll_ctl(_epoll_fd, EPOLL_CTL_DEL, fd, &ev_fd) != 0)
     {
       return false;
     }
@@ -197,25 +197,25 @@ namespace mrpc::detail
 
   void epoll_t::reset_event_fd()
   {
-    if(event_fd_ != -1)
+    if(_event_fd != -1)
     {
-      del_fd(event_fd_);
-      close(event_fd_);
+      del_fd(_event_fd);
+      close(_event_fd);
     }
-    event_fd_ = eventfd(0, EFD_SEMAPHORE);
-    if (event_fd_ == -1)
+    _event_fd = eventfd(0, EFD_SEMAPHORE);
+    if (_event_fd == -1)
     {
        throw_system_error("can't create event_fd");
     }
-    if(!set_nonblocking(event_fd_, true))
+    if(!set_nonblocking(_event_fd, true))
     {
-      close(event_fd_);
+      close(_event_fd);
       throw_system_error("can't set event_fd on noblocking way");
     }
     epoll_event ev;
     ev.events = static_cast<uint32_t>(EPOLLIN);
-    ev.data.ptr = &event_fd_;
-    if (!add_fd(event_fd_, ev))
+    ev.data.ptr = &_event_fd;
+    if (!add_fd(_event_fd, ev))
     {
       throw_system_error("can't add event_fd to epoll");
     }
@@ -223,32 +223,32 @@ namespace mrpc::detail
 
   void epoll_t::schedule_coroutine(std::experimental::coroutine_handle<> handle)
   {
-    coroutine_queue_.enqueue(handle);
+    _coroutine_queue.enqueue(handle);
     wakeup(1);
   }
 
   bool epoll_t::try_enter_loop()
   {
-    uint32_t expected = thread_state_.load(std::memory_order_relaxed);
+    uint32_t expected = _thread_state.load(std::memory_order_relaxed);
     do
     {
       if (expected & 1)
         return false;
-    } while (thread_state_.compare_exchange_weak(expected,
+    } while (_thread_state.compare_exchange_weak(expected,
                                                  expected + 2, std::memory_order_relaxed));
     return true;
   }
 
   void epoll_t::exit_loop()
   {
-    thread_state_.fetch_sub(2, std::memory_order_relaxed);
+    _thread_state.fetch_sub(2, std::memory_order_relaxed);
   }
 
   error_code epoll_t::wait_events(milliseconds_t millisecs)
   {
     using namespace std::literals::chrono_literals;
     error_code ret = error_code::NONE_ERROR;
-    auto timeout = std::chrono::duration_cast<milliseconds_t>(next_timeout_point_ - high_resolution_clock_t::now());
+    auto timeout = std::chrono::duration_cast<milliseconds_t>(_next_timeout_point - high_resolution_clock_t::now());
 
     if (timeout < 0ms)
     {
@@ -263,8 +263,8 @@ namespace mrpc::detail
     int r;
     for (;;)
     {
-      r = epoll_wait(epoll_fd_, evs, MAX_EPOLL_EVENTS, timeout.count());
-      next_timeout_point_ = high_resolution_clock_t::now() + milliseconds_t(3000);
+      r = epoll_wait(_epoll_fd, evs, MAX_EPOLL_EVENTS, timeout.count());
+      _next_timeout_point = high_resolution_clock_t::now() + milliseconds_t(3000);
       if (r < 0)
       {
         if (errno == EINTR)
@@ -277,19 +277,19 @@ namespace mrpc::detail
     {
       for (int i = 0; i < r; ++i)
       {
-        if (evs[i].data.ptr == &event_fd_)
+        if (evs[i].data.ptr == &_event_fd)
         {
           uint64_t semaphore_v;
           int re;
           do
           {
-            re = ::read(event_fd_, &semaphore_v, sizeof(semaphore_v));
+            re = ::read(_event_fd, &semaphore_v, sizeof(semaphore_v));
           } while (re < 0 && errno == EINTR);
 
-          if (coroutine_queue_.size_approx() > 0)
+          if (_coroutine_queue.size_approx() > 0)
           {
             std::experimental::coroutine_handle<> coroutine;
-            while (coroutine_queue_.try_dequeue(coroutine))
+            while (_coroutine_queue.try_dequeue(coroutine))
             {
               coroutine.resume();
             }
@@ -337,9 +337,9 @@ namespace mrpc::detail
 
     if (!sock->valid())
     {
-      socket_refs_mtx_.lock();
-      socket_refs_[sock->handle()] = nullptr;
-      socket_refs_mtx_.unlock();
+      _socket_refs_mtx.lock();
+      _socket_refs[sock->handle()] = nullptr;
+      _socket_refs_mtx.unlock();
     }
   }
 } // namespace mrpc::detail

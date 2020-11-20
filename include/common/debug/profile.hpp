@@ -20,7 +20,7 @@ namespace mrpc
     profile_hack_t(char const* func_name) noexcept;
     ~profile_hack_t() noexcept;
   private:
-    char const* fn_;
-    high_resolution_clock_t::time_point start_;
+    char const* _fn;
+    high_resolution_clock_t::time_point _start;
   };
 } // namespace mrpc

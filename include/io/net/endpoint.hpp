@@ -27,31 +27,31 @@ namespace mrpc
       endpoint_t(std::string_view addr) noexcept;
       endpoint_t(sockaddr const &addr) noexcept;
 
-      bool is_v4() const noexcept { return type_ == endpoint_type::IP_V4; }
-      bool is_v6() const noexcept { return type_ == endpoint_type::IP_V6; }
+      bool is_v4() const noexcept { return _type == endpoint_type::IP_V4; }
+      bool is_v6() const noexcept { return _type == endpoint_type::IP_V6; }
 
-      sockaddr const *get_sockaddr() const noexcept { return reinterpret_cast<sockaddr const *>(&addr4_); }
-      sockaddr *get_sockaddr() noexcept { return reinterpret_cast<sockaddr*>(&addr4_); }
+      sockaddr const *get_sockaddr() const noexcept { return reinterpret_cast<sockaddr const *>(&_addr4); }
+      sockaddr *get_sockaddr() noexcept { return reinterpret_cast<sockaddr*>(&_addr4); }
       size_t addr_len() const noexcept { return is_v4() ? sizeof(sockaddr_in_t) : is_v6() ? sizeof(sockaddr_in6_t) : 0; }
 
     private:
       union
       {
-        sockaddr_in_t addr4_;
-        sockaddr_in6_t addr6_;
+        sockaddr_in_t _addr4;
+        sockaddr_in6_t _addr6;
       };
-      endpoint_type type_;
+      endpoint_type _type;
     };
 
     inline endpoint_t::endpoint_t() noexcept
-        : addr6_{0},
-          type_(endpoint_type::INVALID)
+        : _addr6{0},
+          _type(endpoint_type::INVALID)
     {
     }
 
     inline endpoint_t::endpoint_t(std::string_view addr) noexcept
-        : addr6_{0},
-          type_(endpoint_type::INVALID)
+        : _addr6{0},
+          _type(endpoint_type::INVALID)
     {
       using namespace std;
       using namespace mstring;
@@ -59,10 +59,10 @@ namespace mrpc
       size_t pcount = sv_trait::count(addr, ".");
       if (sv_trait::count(addr, ":") == 1 && pcount == 3)
       {
-        type_ = endpoint_type::IP_V4;
-        addr4_.sin_family = AF_INET;
-        addr4_.sin_port = sv_trait::to_integer<decltype(addr4_.sin_port)>(addr.substr(addr.find(":") + 1));
-        addr4_.sin_port = htons(addr4_.sin_port);
+        _type = endpoint_type::IP_V4;
+        _addr4.sin_family = AF_INET;
+        _addr4.sin_port = sv_trait::to_integer<decltype(_addr4.sin_port)>(addr.substr(addr.find(":") + 1));
+        _addr4.sin_port = htons(_addr4.sin_port);
 
         uint32_t tmp = 0;
         union s_un
@@ -84,9 +84,9 @@ namespace mrpc
           }
         }
 #ifdef OS_WIN
-        addr4_.sin_addr.S_un.S_addr = ip.iip;
+        _addr4.sin_addr.S_un.S_addr = ip.iip;
 #elif defined(OS_GNU_LINUX)
-        addr4_.sin_addr.s_addr = ip.iip;
+        _addr4.sin_addr.s_addr = ip.iip;
 #endif
       }
     }
@@ -96,13 +96,13 @@ namespace mrpc
     {
       if (addr.sa_family == AF_INET)
       {
-        type_ = endpoint_type::IP_V4;
-        memcpy(&addr4_, &addr, sizeof(addr4_));
+        _type = endpoint_type::IP_V4;
+        memcpy(&_addr4, &addr, sizeof(_addr4));
       }
       else if (addr.sa_family == AF_INET)
       {
-        type_ = endpoint_type::IP_V6;
-        memcpy(&addr6_, &addr, sizeof(addr6_));
+        _type = endpoint_type::IP_V6;
+        memcpy(&_addr6, &addr, sizeof(_addr6));
       }
     }
   } // namespace net

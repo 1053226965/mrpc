@@ -31,7 +31,7 @@ namespace mrpc::detail
       void await_suspend(std::experimental::coroutine_handle<> handle) noexcept;
       void await_resume() const noexcept {}
 
-      epoll_t& epoll_;
+      epoll_t& _epoll;
     };
     friend struct schedule_awaitable_t;
 
@@ -45,10 +45,10 @@ namespace mrpc::detail
     error_code loop_process();
     error_code add_socket(std::shared_ptr<net::socket_t>& s);
     error_code rem_socket(std::shared_ptr<net::socket_t>& s);
-    HANDLE get_handle() const noexcept { return epoll_fd_; }
+    HANDLE get_handle() const noexcept { return _epoll_fd; }
     void wakeup(size_t wakeup_count);
     void stop();
-    bool stoped() noexcept { return thread_state_.load(std::memory_order_relaxed) & 1; }
+    bool stoped() noexcept { return _thread_state.load(std::memory_order_relaxed) & 1; }
     void reset();
 
   private:
@@ -62,17 +62,17 @@ namespace mrpc::detail
     error_code wait_events(milliseconds_t millisecs);
     void handle_event(epoll_event const &ev);
     
-    socket_handle_t epoll_fd_;
-    //socket_handle_t wakeup_fds_[2];
-    socket_handle_t event_fd_;
+    socket_handle_t _epoll_fd;
+    //socket_handle_t _wakeup_fds[2];
+    socket_handle_t _event_fd;
 
-    moodycamel::ConcurrentQueue<std::experimental::coroutine_handle<>> coroutine_queue_;
+    moodycamel::ConcurrentQueue<std::experimental::coroutine_handle<>> _coroutine_queue;
 
-    std::atomic_uint32_t thread_state_;
-    static thread_local high_resolution_clock_t::time_point next_timeout_point_;
+    std::atomic_uint32_t _thread_state;
+    static thread_local high_resolution_clock_t::time_point _next_timeout_point;
 
-    std::mutex socket_refs_mtx_;
-    std::unordered_map<socket_handle_t, std::shared_ptr<net::socket_t>> socket_refs_; // when a socket be added in epoll, we must hold the socekt and free it by epoll
+    std::mutex _socket_refs_mtx;
+    std::unordered_map<socket_handle_t, std::shared_ptr<net::socket_t>> _socket_refs; // when a socket be added in epoll, we must hold the socekt and free it by epoll
   };
 
 } // namespace mrpc::detail

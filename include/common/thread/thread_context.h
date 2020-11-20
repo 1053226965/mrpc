@@ -19,7 +19,7 @@ namespace mrpc
 
   private:
 
-    std::queue<ctx_call> calls_;
-    thread_ctx* pre_ctx_;
+    std::queue<ctx_call> _calls;
+    thread_ctx* _pre_ctx;
   };
 }

@@ -13,13 +13,13 @@ namespace mrpc::detail
   public:
     void cancel()
     {
-      M_ASSERT(cancelled_);
-      cancelled_->store(true, std::memory_order_relaxed);
+      M_ASSERT(_cancelled);
+      _cancelled->store(true, std::memory_order_relaxed);
     }
 
   private:
-    void set(std::shared_ptr<std::atomic_bool> const &flag) { cancelled_ = flag; }
-    std::shared_ptr<std::atomic_bool> cancelled_;
+    void set(std::shared_ptr<std::atomic_bool> const &flag) { _cancelled = flag; }
+    std::shared_ptr<std::atomic_bool> _cancelled;
   };
 
   class schedule_timer_t
@@ -35,7 +35,7 @@ namespace mrpc::detail
     schedule_timer_t(schedule_timer_t &&timer) noexcept;
     ~schedule_timer_t() noexcept;
 
-    high_resolution_clock_t::time_point get_timeout_point() noexcept { return timeout_point_; }
+    high_resolution_clock_t::time_point get_timeout_point() noexcept { return _timeout_point; }
 
     template <typename IO_CONTEXT_IMPL>
     static void check_timer(IO_CONTEXT_IMPL &&io_ctx);
@@ -47,19 +47,19 @@ namespace mrpc::detail
     friend bool operator<(schedule_timer_t const &l, schedule_timer_t const &r);
 
   private:
-    bool cancelled() noexcept { return cancelled_->load(std::memory_order_relaxed); }
+    bool cancelled() noexcept { return _cancelled->load(std::memory_order_relaxed); }
 
   private:
-    io_context_t &io_ctx_;
-    high_resolution_clock_t::time_point timeout_point_;
-    std::experimental::coroutine_handle<> croutine_;
-    task_t<void> schedule_task_;
-    std::shared_ptr<std::atomic_bool> cancelled_;
+    io_context_t &_io_ctx;
+    high_resolution_clock_t::time_point _timeout_point;
+    std::experimental::coroutine_handle<> _croutine;
+    task_t<void> _schedule_task;
+    std::shared_ptr<std::atomic_bool> _cancelled;
   };
 
   inline bool operator<(schedule_timer_t const &l, schedule_timer_t const &r)
   {
-    return l.timeout_point_ < r.timeout_point_;
+    return l._timeout_point < r._timeout_point;
   }
 
   struct schedule_timer_t::pointer_cmp_type
@@ -79,15 +79,15 @@ namespace mrpc::detail
   void schedule_timer_t::check_timer(IO_CONTEXT_IMPL &&io_ctx)
   {
     auto now = high_resolution_clock_t::now();
-    while (!local_timers->empty() && now >= local_timers->top()->timeout_point_)
+    while (!local_timers->empty() && now >= local_timers->top()->_timeout_point)
     {
       auto const top = local_timers->pop();
-      if (!top->cancelled_ || !top->cancelled())
-        top->croutine_.resume();
+      if (!top->_cancelled || !top->cancelled())
+        top->_croutine.resume();
     }
     if (!local_timers->empty())
     {
-      io_ctx.update_next_timeout_point(local_timers->top()->timeout_point_);
+      io_ctx.update_next_timeout_point(local_timers->top()->_timeout_point);
     }
   }
 } // namespace mrpc::detail

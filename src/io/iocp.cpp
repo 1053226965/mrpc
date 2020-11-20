@@ -29,22 +29,22 @@ namespace mrpc::detail
   };
   static winsock_init_t winsock_init;
 
-  thread_local high_resolution_clock_t::time_point iocp_t::next_timeout_point_ = high_resolution_clock_t::now();
+  thread_local high_resolution_clock_t::time_point iocp_t::_next_timeout_point = high_resolution_clock_t::now();
 
   iocp_t::schedule_awaitable_t::schedule_awaitable_t(iocp_t &iocp) noexcept
-      : iocp_ctx_(iocp) {}
+      : _iocp_ctx(iocp) {}
 
   void iocp_t::schedule_awaitable_t::await_suspend(std::experimental::coroutine_handle<> handle) noexcept
   {
-    iocp_ctx_.schedule_coroutine(handle);
+    _iocp_ctx.schedule_coroutine(handle);
   }
 
-  iocp_t::iocp_t(size_t concurrencyHint) : thread_state_(0)
+  iocp_t::iocp_t(size_t concurrencyHint) : _thread_state(0)
   {
     (void)winsock_init;
-    iocp_handle_ = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0,
+    _iocp_handle = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0,
                                             static_cast<DWORD>(concurrencyHint));
-    if (iocp_handle_ == NULL)
+    if (_iocp_handle == NULL)
     {
       DWORD errorCode = ::GetLastError();
       throw std::system_error{
@@ -56,8 +56,8 @@ namespace mrpc::detail
 
   iocp_t::~iocp_t()
   {
-    M_ASSERT(iocp_handle_);
-    CloseHandle(iocp_handle_);
+    M_ASSERT(_iocp_handle);
+    CloseHandle(_iocp_handle);
   }
 
   iocp_t::schedule_awaitable_t iocp_t::schedule() noexcept
@@ -93,7 +93,7 @@ namespace mrpc::detail
   {
     const HANDLE result = ::CreateIoCompletionPort(
         (HANDLE)s->handle(),
-        iocp_handle_,
+        _iocp_handle,
         ULONG_PTR(0),
         DWORD(0));
     if (result == nullptr)
@@ -118,12 +118,12 @@ namespace mrpc::detail
   void iocp_t::wakeup(size_t wakeup_count)
   {
     for(size_t i = 0; i < wakeup_count; i++)
-      ::PostQueuedCompletionStatus(iocp_handle_, 0, 0, nullptr);
+      ::PostQueuedCompletionStatus(_iocp_handle, 0, 0, nullptr);
   }
 
   void iocp_t::stop()
   {
-    uint32_t state = thread_state_.fetch_or(1, std::memory_order_relaxed);
+    uint32_t state = _thread_state.fetch_or(1, std::memory_order_relaxed);
     if((state & 1) == 0)
     {
       wakeup(state / 2);
@@ -132,24 +132,24 @@ namespace mrpc::detail
 
   void iocp_t::reset()
   {
-    thread_state_.fetch_and((~static_cast<uint32_t>(1)), std::memory_order_relaxed);
+    _thread_state.fetch_and((~static_cast<uint32_t>(1)), std::memory_order_relaxed);
   }
 
   bool iocp_t::try_enter_loop()
   {
-    uint32_t expected = thread_state_.load(std::memory_order_acquire);
+    uint32_t expected = _thread_state.load(std::memory_order_acquire);
     do
     {
       if (expected & 1)
         return false;
-    } while (thread_state_.compare_exchange_weak(expected,
+    } while (_thread_state.compare_exchange_weak(expected,
                                                  expected + 2, std::memory_order_relaxed));
     return true;
   }
 
   void iocp_t::exit_loop()
   {
-    thread_state_.fetch_sub(2, std::memory_order_relaxed);
+    _thread_state.fetch_sub(2, std::memory_order_relaxed);
   }
 
   error_code iocp_t::iocp_wait(milliseconds_t millisecs)
@@ -161,7 +161,7 @@ namespace mrpc::detail
     ULONG_PTR completionKey = 0;
     LPOVERLAPPED overlapped = nullptr;
 
-    auto timeout = std::chrono::duration_cast<milliseconds_t>(next_timeout_point_ - high_resolution_clock_t::now());
+    auto timeout = std::chrono::duration_cast<milliseconds_t>(_next_timeout_point - high_resolution_clock_t::now());
 
     if (timeout < 0ms)
     {
@@ -173,13 +173,13 @@ namespace mrpc::detail
     }
 
     BOOL ok = ::GetQueuedCompletionStatus(
-        iocp_handle_,
+        _iocp_handle,
         &numberOfBytesTransferred,
         &completionKey,
         &overlapped,
         static_cast<DWORD>(timeout.count()));
 
-    next_timeout_point_ = high_resolution_clock_t::now() + milliseconds_t(3000);
+    _next_timeout_point = high_resolution_clock_t::now() + milliseconds_t(3000);
 
     if (overlapped != NULL)
     {
@@ -227,7 +227,7 @@ namespace mrpc::detail
   void iocp_t::schedule_coroutine(std::experimental::coroutine_handle<> handle)
   {
     BOOL ok = ::PostQueuedCompletionStatus(
-        iocp_handle_,
+        _iocp_handle,
         0,
         reinterpret_cast<ULONG_PTR>(handle.address()),
         nullptr);
@@ -239,7 +239,7 @@ namespace mrpc::detail
 
   void iocp_t::update_next_timeout_point(high_resolution_clock_t::time_point tp) noexcept
   {
-    next_timeout_point_ = tp;
+    _next_timeout_point = tp;
   }
 } // namespace mrpc::detail
 

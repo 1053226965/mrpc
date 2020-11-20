@@ -17,80 +17,80 @@ namespace mrpc::net::detail
     ~connection_base_t() noexcept { close(); }
     connection_base_t &operator=(connection_base_t &&c) noexcept;
 
-    std::shared_ptr<socket_t> &socket() { return socket_; }
-    void own_socket(socket_t &&s) noexcept { socket_ = std::make_shared<socket_t>(std::move(s)); }
+    std::shared_ptr<socket_t> &socket() { return _socket; }
+    void own_socket(socket_t &&s) noexcept { _socket = std::make_shared<socket_t>(std::move(s)); }
     error_code attach_to_io_ctx(IO_CONTEXT *io_ctx);
 
-    io_state_t &get_recv_io_state() { return recv_io_state_; }
-    io_state_t &get_send_io_state() { return send_io_state_; }
-    bool valid() noexcept { return socket_ && socket_->valid(); }
+    io_state_t &get_recv_io_state() { return _recv_io_state; }
+    io_state_t &get_send_io_state() { return _send_io_state; }
+    bool valid() noexcept { return _socket && _socket->valid(); }
     void shutdown_wr() noexcept;
     void close() noexcept;
 
   private:
-    IO_CONTEXT *io_ctx_ = nullptr;
-    std::shared_ptr<socket_t> socket_;
-    io_state_t recv_io_state_;
-    io_state_t send_io_state_;
+    IO_CONTEXT *_io_ctx = nullptr;
+    std::shared_ptr<socket_t> _socket;
+    io_state_t _recv_io_state;
+    io_state_t _send_io_state;
   };
 
   template <typename IO_CONTEXT>
-  inline connection_base_t<IO_CONTEXT>::connection_base_t() noexcept : io_ctx_(nullptr),
-                                                                       recv_io_state_(io_state_t::type_t::recv),
-                                                                       send_io_state_(io_state_t::type_t::send)
+  inline connection_base_t<IO_CONTEXT>::connection_base_t() noexcept : _io_ctx(nullptr),
+                                                                       _recv_io_state(io_state_t::type_t::recv),
+                                                                       _send_io_state(io_state_t::type_t::send)
   {
   }
 
   template <typename IO_CONTEXT>
-  inline connection_base_t<IO_CONTEXT>::connection_base_t(socket_t &&s) noexcept : io_ctx_(nullptr),
-                                                                                   socket_(std::make_unique<socket_t>(std::move(s))),
-                                                                                   recv_io_state_(io_state_t::type_t::recv),
-                                                                                   send_io_state_(io_state_t::type_t::send)
+  inline connection_base_t<IO_CONTEXT>::connection_base_t(socket_t &&s) noexcept : _io_ctx(nullptr),
+                                                                                   _socket(std::make_unique<socket_t>(std::move(s))),
+                                                                                   _recv_io_state(io_state_t::type_t::recv),
+                                                                                   _send_io_state(io_state_t::type_t::send)
   {
   }
 
   template <typename IO_CONTEXT>
-  inline connection_base_t<IO_CONTEXT>::connection_base_t(connection_base_t &&c) noexcept : io_ctx_(c.io_ctx_),
-                                                                                            socket_(std::move(c.socket_)),
-                                                                                            recv_io_state_(std::move(c.recv_io_state_)),
-                                                                                            send_io_state_(std::move(c.send_io_state_))
+  inline connection_base_t<IO_CONTEXT>::connection_base_t(connection_base_t &&c) noexcept : _io_ctx(c._io_ctx),
+                                                                                            _socket(std::move(c._socket)),
+                                                                                            _recv_io_state(std::move(c._recv_io_state)),
+                                                                                            _send_io_state(std::move(c._send_io_state))
   {
   }
 
   template <typename IO_CONTEXT>
   inline connection_base_t<IO_CONTEXT> &connection_base_t<IO_CONTEXT>::operator=(connection_base_t<IO_CONTEXT> &&c) noexcept
   {
-    io_ctx_ = c.io_ctx_;
-    socket_ = std::move(c.socket_);
-    recv_io_state_ = std::move(c.recv_io_state_);
-    send_io_state_ = std::move(c.send_io_state_);
+    _io_ctx = c._io_ctx;
+    _socket = std::move(c._socket);
+    _recv_io_state = std::move(c._recv_io_state);
+    _send_io_state = std::move(c._send_io_state);
     return *this;
   }
 
   template <typename IO_CONTEXT>
   inline error_code connection_base_t<IO_CONTEXT>::attach_to_io_ctx(IO_CONTEXT *io_ctx)
   {
-    io_ctx_ = io_ctx;
-    return io_ctx_->add_socket(socket());
+    _io_ctx = io_ctx;
+    return _io_ctx->add_socket(socket());
   }
 
   template <typename IO_CONTEXT>
   inline void connection_base_t<IO_CONTEXT>::shutdown_wr() noexcept
   {
-    if (socket_)
+    if (_socket)
     {
-      socket_->shutdown_wr();
+      _socket->shutdown_wr();
     }
   }
 
   template <typename IO_CONTEXT>
   inline void connection_base_t<IO_CONTEXT>::close() noexcept
   {
-    if (socket_)
+    if (_socket)
     {
-      if (io_ctx_)
+      if (_io_ctx)
       {
-        if (io_ctx_->rem_socket(socket()) != error_code::NONE_ERROR)
+        if (_io_ctx->rem_socket(socket()) != error_code::NONE_ERROR)
         {
           DETAIL_LOG_WARN("[connection] failed to detach fd {} from ioctx", socket()->handle());
         }
@@ -99,10 +99,10 @@ namespace mrpc::net::detail
           DETAIL_LOG_INFO("[connection] {} detached from ioctx", socket()->handle());
         }
       }
-      socket_->close();
+      _socket->close();
 #ifdef OS_GNU_LINUX
-      socket_->ready_to_read(); // wakeup coroutine
-      socket_->ready_to_write(); // wakeup coroutine
+      _socket->ready_to_read(); // wakeup coroutine
+      _socket->ready_to_write(); // wakeup coroutine
 #endif
     }
   }

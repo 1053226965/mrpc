@@ -26,9 +26,9 @@ namespace mrpc::net
 
     struct socket_detail_t
     {
-      int af_;
-      int type_;
-      int protocol_;
+      int _af;
+      int _type;
+      int _protocol;
     };
 
   public:
@@ -38,24 +38,24 @@ namespace mrpc::net
     static constexpr int sock_dgram = SOCK_DGRAM;
     static constexpr int default_protocol = 0;
 
-    socket_t() : handle_(INVAILD_SOCKET), socket_detail_{0} {}
+    socket_t() : _handle(INVAILD_SOCKET), _socket_detail{0} {}
     socket_t(socket_handle_t socket, socket_detail_t const &detail) noexcept;
     socket_t(int af, int type, int protocol) noexcept;
     socket_t(socket_t &&socket) noexcept;
-    socket_t(socket_detail_t const &detail) noexcept : socket_t(detail.af_, detail.type_, detail.protocol_){};
+    socket_t(socket_detail_t const &detail) noexcept : socket_t(detail._af, detail._type, detail._protocol){};
     ~socket_t() noexcept;
 
     socket_t &operator=(socket_t &&socket) noexcept;
 
-    socket_handle_t handle() const noexcept { return handle_; }
-    bool valid() noexcept { return handle_ != INVAILD_SOCKET; }
-    size_t get_socket_addr_len() noexcept { return socket_detail_.af_ == af_inet ? sizeof(sockaddr_in) : sizeof(sockaddr_in6); }
-    endpoint_t &get_local_endpoint() noexcept { return local_endpoint_; }
-    endpoint_t &get_remote_endpoint() noexcept { return remote_endpoint_; }
-    void set_local_endpoint(sockaddr const &s) noexcept { local_endpoint_ = endpoint_t(s); }
-    void set_remote_endpoint(sockaddr const &s) noexcept { remote_endpoint_ = endpoint_t(s); }
+    socket_handle_t handle() const noexcept { return _handle; }
+    bool valid() noexcept { return _handle != INVAILD_SOCKET; }
+    size_t get_socket_addr_len() noexcept { return _socket_detail._af == af_inet ? sizeof(sockaddr_in) : sizeof(sockaddr_in6); }
+    endpoint_t &get_local_endpoint() noexcept { return _local_endpoint; }
+    endpoint_t &get_remote_endpoint() noexcept { return _remote_endpoint; }
+    void set_local_endpoint(sockaddr const &s) noexcept { _local_endpoint = endpoint_t(s); }
+    void set_remote_endpoint(sockaddr const &s) noexcept { _remote_endpoint = endpoint_t(s); }
 
-    socket_detail_t get_socket_detail() const noexcept { return socket_detail_; }
+    socket_detail_t get_socket_detail() const noexcept { return _socket_detail; }
 
     error_code bind_addr(endpoint_t const &e) noexcept;
 
@@ -66,7 +66,7 @@ namespace mrpc::net
 #ifdef OS_WIN
     bool skip_compeletion_port_on_success() const
     {
-      return skip_compeletion_port_on_success_;
+      return _skip_compeletion_port_on_success;
     }
 #endif
   private:
@@ -74,50 +74,50 @@ namespace mrpc::net
 
   private:
 #ifdef OS_WIN
-    bool skip_compeletion_port_on_success_ = {false};
+    bool _skip_compeletion_port_on_success = {false};
 #endif
 #ifdef OS_GNU_LINUX
   public:
-    bool notify_on_read(io_state_t &io_state) { return read_state_.notify_on_ready(io_state); }
-    bool notify_on_write(io_state_t &io_state) { return write_state_.notify_on_ready(io_state); }
-    void ready_to_read() { read_state_.set_ready(); }
-    void ready_to_write() { write_state_.set_ready(); }
+    bool notify_on_read(io_state_t &io_state) { return _read_state.notify_on_ready(io_state); }
+    bool notify_on_write(io_state_t &io_state) { return _write_state.notify_on_ready(io_state); }
+    void ready_to_read() { _read_state.set_ready(); }
+    void ready_to_write() { _write_state.set_ready(); }
 
   private:
-    lf_notifier_t read_state_;
-    lf_notifier_t write_state_;
+    lf_notifier_t _read_state;
+    lf_notifier_t _write_state;
 #endif
-    socket_handle_t handle_;
-    endpoint_t local_endpoint_;
-    endpoint_t remote_endpoint_;
-    socket_detail_t socket_detail_;
+    socket_handle_t _handle;
+    endpoint_t _local_endpoint;
+    endpoint_t _remote_endpoint;
+    socket_detail_t _socket_detail;
   };
 
-  inline net::socket_t::socket_t(int af, int type, int protocol) noexcept : socket_detail_{af, type, protocol}
+  inline net::socket_t::socket_t(int af, int type, int protocol) noexcept : _socket_detail{af, type, protocol}
   {
-    handle_ = ::socket(af, type, protocol);
+    _handle = ::socket(af, type, protocol);
     if (valid())
     {
       prepare();
     }
   }
 
-  inline net::socket_t::socket_t(socket_handle_t socket, socket_detail_t const &detail) noexcept : socket_detail_{detail.af_, detail.type_, detail.protocol_}
+  inline net::socket_t::socket_t(socket_handle_t socket, socket_detail_t const &detail) noexcept : _socket_detail{detail._af, detail._type, detail._protocol}
   {
-    handle_ = socket;
+    _handle = socket;
     prepare();
   }
 
-  inline socket_t::socket_t(socket_t &&socket) noexcept : handle_(socket.handle_),
-                                                          local_endpoint_(std::move(socket.local_endpoint_)),
-                                                          remote_endpoint_(std::move(socket.remote_endpoint_)),
-                                                          socket_detail_(socket.socket_detail_)
+  inline socket_t::socket_t(socket_t &&socket) noexcept : _handle(socket._handle),
+                                                          _local_endpoint(std::move(socket._local_endpoint)),
+                                                          _remote_endpoint(std::move(socket._remote_endpoint)),
+                                                          _socket_detail(socket._socket_detail)
 #ifdef OS_WIN
                                                           ,
-                                                          skip_compeletion_port_on_success_(socket.skip_compeletion_port_on_success_)
+                                                          _skip_compeletion_port_on_success(socket._skip_compeletion_port_on_success)
 #endif
   {
-    socket.handle_ = INVAILD_SOCKET;
+    socket._handle = INVAILD_SOCKET;
   }
 
   inline socket_t::~socket_t() noexcept
@@ -129,22 +129,22 @@ namespace mrpc::net
   {
     if (valid())
     {
-      closesocket(handle_);
+      closesocket(_handle);
     }
-    handle_ = socket.handle_;
-    local_endpoint_ = std::move(socket.local_endpoint_);
-    remote_endpoint_ = std::move(socket.remote_endpoint_);
+    _handle = socket._handle;
+    _local_endpoint = std::move(socket._local_endpoint);
+    _remote_endpoint = std::move(socket._remote_endpoint);
 #ifdef OS_WIN
-    skip_compeletion_port_on_success_ = socket.skip_compeletion_port_on_success_;
+    _skip_compeletion_port_on_success = socket._skip_compeletion_port_on_success;
 #endif
-    socket_detail_ = std::move(socket.socket_detail_);
-    socket.handle_ = INVAILD_SOCKET;
+    _socket_detail = std::move(socket._socket_detail);
+    socket._handle = INVAILD_SOCKET;
     return *this;
   }
 
   inline error_code socket_t::bind_addr(endpoint_t const &e) noexcept
   {
-    if (::bind(handle_, e.get_sockaddr(), static_cast<int>(e.addr_len())) ==
+    if (::bind(_handle, e.get_sockaddr(), static_cast<int>(e.addr_len())) ==
         SOCKET_ERROR)
     {
       return error_code::BIND_ERROR;
@@ -157,7 +157,7 @@ namespace mrpc::net
   {
     if (valid())
     {
-      shutdown(handle_, SHUT_WR);
+      shutdown(_handle, SHUT_WR);
     }
   }
 
@@ -165,7 +165,7 @@ namespace mrpc::net
   {
     if (valid())
     {
-      shutdown(handle_, SHUT_RD);
+      shutdown(_handle, SHUT_RD);
     }
   }
 
@@ -173,13 +173,13 @@ namespace mrpc::net
   {
     if (valid())
     {
-      DETAIL_LOG_INFO("[socket] socket {} be closed", handle_);
-      closesocket(handle_);
-      handle_ = INVAILD_SOCKET;
+      DETAIL_LOG_INFO("[socket] socket {} be closed", _handle);
+      closesocket(_handle);
+      _handle = INVAILD_SOCKET;
     }
     else
     {
-      DETAIL_LOG_INFO("[socket] close invalid socket ", handle_);
+      DETAIL_LOG_INFO("[socket] close invalid socket ", _handle);
     }
   }
 
@@ -191,18 +191,18 @@ namespace mrpc::net
     int status;
     uint32_t param = 1;
     DWORD ret;
-    status = WSAIoctl(handle_, FIONBIO, &param, sizeof(param), NULL, 0, &ret,
+    status = WSAIoctl(_handle, FIONBIO, &param, sizeof(param), NULL, 0, &ret,
                       NULL, NULL);
     if (status == 0)
     {
       BOOL param = TRUE;
-      status = ::setsockopt(handle_, IPPROTO_TCP, TCP_NODELAY,
+      status = ::setsockopt(_handle, IPPROTO_TCP, TCP_NODELAY,
                             reinterpret_cast<char *>(&param), sizeof(param));
     }
 
     WSAPROTOCOL_INFOW protocol_info;
     int opt_len = (int)sizeof protocol_info;
-    if (getsockopt(handle_,
+    if (getsockopt(_handle,
                    SOL_SOCKET,
                    SO_PROTOCOL_INFOW,
                    (char *)&protocol_info,
@@ -210,7 +210,7 @@ namespace mrpc::net
     {
       if ((protocol_info.dwServiceFlags1 & XP1_IFS_HANDLES))
       {
-        skip_compeletion_port_on_success_ = true;
+        _skip_compeletion_port_on_success = true;
       }
     }
 #endif
@@ -230,16 +230,16 @@ namespace mrpc::net
       }
       return error_code::NONE_ERROR;
     };
-    set_flag(static_cast<int>(handle_), O_NONBLOCK);
-    set_flag(static_cast<int>(handle_), FD_CLOEXEC);
+    set_flag(static_cast<int>(_handle), O_NONBLOCK);
+    set_flag(static_cast<int>(_handle), FD_CLOEXEC);
     int val = 1;
     int newval;
     socklen_t intlen = sizeof(newval);
-    if (0 != setsockopt(handle_, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val)))
+    if (0 != setsockopt(_handle, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val)))
     {
       return error_code::SYSTEM_ERROR;
     }
-    if (0 != getsockopt(handle_, IPPROTO_TCP, TCP_NODELAY, &newval, &intlen))
+    if (0 != getsockopt(_handle, IPPROTO_TCP, TCP_NODELAY, &newval, &intlen))
     {
       return error_code::SYSTEM_ERROR;
     }
@@ -250,11 +250,11 @@ namespace mrpc::net
 
     val = 1;
     intlen = sizeof(newval);
-    if (0 != setsockopt(handle_, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val)))
+    if (0 != setsockopt(_handle, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val)))
     {
       return error_code::SYSTEM_ERROR;
     }
-    if (0 != getsockopt(handle_, SOL_SOCKET, SO_REUSEADDR, &newval, &intlen))
+    if (0 != getsockopt(_handle, SOL_SOCKET, SO_REUSEADDR, &newval, &intlen))
     {
       return error_code::SYSTEM_ERROR;
     }

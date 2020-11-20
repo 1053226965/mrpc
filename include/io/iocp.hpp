@@ -24,7 +24,7 @@ namespace mrpc::detail
       void await_suspend(std::experimental::coroutine_handle<> handle) noexcept;
       void await_resume() const noexcept {}
 
-      iocp_t& iocp_ctx_;
+      iocp_t& _iocp_ctx;
     };
     friend struct schedule_awaitable_t;
 
@@ -38,10 +38,10 @@ namespace mrpc::detail
     error_code loop_process();
     error_code add_socket(std::shared_ptr<net::socket_t>& s);
     error_code rem_socket(std::shared_ptr<net::socket_t>& s) { return error_code::NONE_ERROR; }
-    HANDLE get_handle() const noexcept { return iocp_handle_; }
+    HANDLE get_handle() const noexcept { return _iocp_handle; }
     void wakeup(size_t wakeup_count);
     void stop();
-    bool stoped() noexcept { return thread_state_.load(std::memory_order_relaxed) & 1; }
+    bool stoped() noexcept { return _thread_state.load(std::memory_order_relaxed) & 1; }
     void reset();
 
   private:
@@ -51,9 +51,9 @@ namespace mrpc::detail
     error_code iocp_wait(milliseconds_t millis);
 
   private:
-    std::atomic_uint32_t thread_state_;
-    HANDLE iocp_handle_;
-    static thread_local high_resolution_clock_t::time_point next_timeout_point_;
+    std::atomic_uint32_t _thread_state;
+    HANDLE _iocp_handle;
+    static thread_local high_resolution_clock_t::time_point _next_timeout_point;
   };
 
   using io_context_impl = iocp_t;

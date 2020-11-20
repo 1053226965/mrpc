@@ -26,13 +26,13 @@ namespace mrpc::net::detail
           nbuf->buf_len = len;
         });
       };
-      get_buf(bufs, buffer_);
+      get_buf(bufs, _buffer);
       while (!done())
       {
         int bytes;
         do
         {
-          bytes = ::send(connection_.socket()->handle(), bufs[0].buf, bufs[0].buf_len, 0);
+          bytes = ::send(_connection.socket()->handle(), bufs[0].buf, bufs[0].buf_len, 0);
         } while (bytes < 0 && errno == EINTR);
 
         if (bytes < 0)
@@ -54,27 +54,27 @@ namespace mrpc::net::detail
             return error_code::SYSTEM_ERROR;
           }
         }
-        buffer_.reader_goahead(bytes);
+        _buffer.reader_goahead(bytes);
         total_size += bytes;
-        get_buf(bufs, buffer_);
+        get_buf(bufs, _buffer);
       }
       return error_code::NONE_ERROR;
     }
 
   public:
     template <typename BUFFER>
-    send_task_t(connection_t &connection, BUFFER &&buffer) noexcept : connection_(connection),
-                                                                      buffer_(std::forward<BUFFER>(buffer))
+    send_task_t(connection_t &connection, BUFFER &&buffer) noexcept : _connection(connection),
+                                                                      _buffer(std::forward<BUFFER>(buffer))
     {
     }
 
-    bool done() noexcept { return buffer_.is_eof(); }
+    bool done() noexcept { return _buffer.is_eof(); }
 
-    bool await_ready() noexcept { return buffer_.is_eof(); }
+    bool await_ready() noexcept { return _buffer.is_eof(); }
 
     bool await_suspend(std::experimental::coroutine_handle<> handle)
     {
-      auto &io_state = connection_.get_send_io_state();
+      auto &io_state = _connection.get_send_io_state();
       size_t total_size = 0;
       switch (try_send(total_size))
       {
@@ -84,7 +84,7 @@ namespace mrpc::net::detail
       case error_code::AGAIN:
         io_state.set_coro_handle(handle);
         io_state.io_completed(error_code::IO_PENDING, total_size);
-        return !connection_.socket()->notify_on_write(io_state);
+        return !_connection.socket()->notify_on_write(io_state);
       default:
         io_state.io_completed(error_code::SYSTEM_ERROR, total_size);
         return false;
@@ -93,7 +93,7 @@ namespace mrpc::net::detail
 
     size_t await_resume() noexcept
     {
-      auto &io_state = connection_.get_send_io_state();
+      auto &io_state = _connection.get_send_io_state();
       switch (io_state.get_error())
       {
       case error_code::NONE_ERROR:
@@ -123,8 +123,8 @@ namespace mrpc::net::detail
     }
 
   private:
-    connection_t &connection_;
-    mrpc::buffer_t buffer_;
+    connection_t &_connection;
+    mrpc::buffer_t _buffer;
   };
 } // namespace mrpc::net::detail
 

@@ -12,10 +12,10 @@ namespace mrpc::detail
   {
     auto initial_suspend() noexcept { return std::experimental::suspend_always(); }
     auto final_suspend() noexcept { return std::experimental::suspend_always(); }
-    void set_notify(std::function<void()> const& notify) noexcept { notify_ = notify; }
-    void notify() { notify_(); }
+    void set_notify(std::function<void()> const& notify) noexcept { _notify = notify; }
+    void notify() { _notify(); }
 
-    std::function<void()> notify_;
+    std::function<void()> _notify;
   };
 
   template<typename T>
@@ -26,8 +26,8 @@ namespace mrpc::detail
     using value_type = std::remove_reference_t<T>;
 
     when_all_promise_t() noexcept:
-      type_(result_type::empty),
-      excetion_ptr_(nullptr)
+      _type(result_type::empty),
+      _excetion_ptr(nullptr)
     {}
 
     ~when_all_promise_t() noexcept {}
@@ -36,36 +36,36 @@ namespace mrpc::detail
 
     void unhandled_exception() noexcept
     {
-      ::new (static_cast<void*>(std::addressof(excetion_ptr_))) std::exception_ptr(std::current_exception());
-      type_ = result_type::exception;
+      ::new (static_cast<void*>(std::addressof(_excetion_ptr))) std::exception_ptr(std::current_exception());
+      _type = result_type::exception;
       notify();
     }
 
     template<typename VT, typename = std::enable_if_t<std::is_convertible_v<VT&&, T>>>
     void return_value(VT&& value) noexcept
     {
-      ::new (static_cast<void*>(std::addressof(value_))) value_type(std::forward<VT>(value));
-      type_ = result_type::value;
+      ::new (static_cast<void*>(std::addressof(_value))) value_type(std::forward<VT>(value));
+      _type = result_type::value;
       notify();
     }
 
     T result() noexcept
     {
-      if (type_ == result_type::exception) {
-        std::rethrow_exception(excetion_ptr_);
+      if (_type == result_type::exception) {
+        std::rethrow_exception(_excetion_ptr);
       }
-      M_ASSERT(type_ == result_type::value);
-      return std::move(value_);
+      M_ASSERT(_type == result_type::value);
+      return std::move(_value);
     }
 
   private:
     enum class result_type { empty, value, exception };
 
-    result_type type_;
+    result_type _type;
     union
     {
-      std::exception_ptr excetion_ptr_;
-      value_type value_;
+      std::exception_ptr _excetion_ptr;
+      value_type _value;
     };
   };
 
@@ -83,7 +83,7 @@ namespace mrpc::detail
 
     void unhandled_exception() noexcept 
     { 
-      excetion_ptr_ = std::current_exception(); 
+      _excetion_ptr = std::current_exception(); 
       notify();
     }
 
@@ -91,13 +91,13 @@ namespace mrpc::detail
 
     void result() noexcept
     {
-      if (excetion_ptr_) {
-        std::rethrow_exception(excetion_ptr_);
+      if (_excetion_ptr) {
+        std::rethrow_exception(_excetion_ptr);
       }
     }
 
   private:
-    std::exception_ptr excetion_ptr_;
+    std::exception_ptr _excetion_ptr;
   };
 
   template<typename T>
@@ -109,42 +109,42 @@ namespace mrpc::detail
     using promise_type = when_all_promise_t<T>;
 
     whell_all_task_t(std::experimental::coroutine_handle<promise_type> handle) noexcept :
-      coroutine_(handle)
+      _coroutine(handle)
     {}
 
     whell_all_task_t(whell_all_task_t&& t) noexcept :
-      coroutine_(std::move(t.coroutine_))
+      _coroutine(std::move(t._coroutine))
     {
-      t.coroutine_ = nullptr;
+      t._coroutine = nullptr;
     }
 
     whell_all_task_t& operator=(whell_all_task_t&& t) noexcept
     {
-      coroutine_ = t.coroutine_;
-      t.coroutine_ = nullptr;
+      _coroutine = t._coroutine;
+      t._coroutine = nullptr;
       return *this;
     }
 
     void set_notify(std::function<void()> notify) noexcept
     {
-      coroutine_.promise().set_notify(notify);
+      _coroutine.promise().set_notify(notify);
     }
 
     void start() 
     {
-      coroutine_.resume();
+      _coroutine.resume();
     }
 
     T result()
     {
       if constexpr (std::is_void_v<T>)
-        coroutine_.promise().result();
+        _coroutine.promise().result();
       else
-        return coroutine_.promise().result();
+        return _coroutine.promise().result();
     }
 
   private:
-    std::experimental::coroutine_handle<promise_type> coroutine_;
+    std::experimental::coroutine_handle<promise_type> _coroutine;
   };
 
   template<typename TUPLE_TASK>
@@ -154,15 +154,15 @@ namespace mrpc::detail
     void awaitable_unfold(std::integer_sequence<size_t, INDICES...>)
     {
       auto notify = [this]() {
-        if (notifyed_count_.fetch_add(1, std::memory_order_relaxed) == std::tuple_size_v<TUPLE_TASK> - 1)
-          coroutine_.resume();
+        if (_notifyed_count.fetch_add(1, std::memory_order_relaxed) == std::tuple_size_v<TUPLE_TASK> - 1)
+          _coroutine.resume();
       };
       auto func = [&notify](auto&& when_all_task) {
         when_all_task.set_notify(notify);
         when_all_task.start();
         return 0;
       };
-      int unused[] = { func(std::get<INDICES>(tuple_))... };
+      int unused[] = { func(std::get<INDICES>(_tuple))... };
       (void)unused;
     }
   public:
@@ -170,8 +170,8 @@ namespace mrpc::detail
     using tuple_task_type = TUPLE_TASK;
 
     when_all_task_awaitable_t(tuple_task_type&& c) noexcept :
-      notifyed_count_(0),
-      tuple_(std::move(c))
+      _notifyed_count(0),
+      _tuple(std::move(c))
     {
     }
 
@@ -179,16 +179,16 @@ namespace mrpc::detail
 
     void await_suspend(std::experimental::coroutine_handle<> handle)
     {
-      coroutine_ = handle;
+      _coroutine = handle;
       awaitable_unfold(std::make_integer_sequence<size_t, std::tuple_size<TUPLE_TASK>::value>{});
     }
 
-    TUPLE_TASK await_resume() noexcept { return std::move(tuple_); }
+    TUPLE_TASK await_resume() noexcept { return std::move(_tuple); }
 
   private:
-    std::atomic_int notifyed_count_;
-    std::experimental::coroutine_handle<> coroutine_;
-    TUPLE_TASK tuple_;
+    std::atomic_int _notifyed_count;
+    std::experimental::coroutine_handle<> _coroutine;
+    TUPLE_TASK _tuple;
   };
 
   template<typename AWAITABLE>

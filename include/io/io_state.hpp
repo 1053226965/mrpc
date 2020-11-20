@@ -34,52 +34,52 @@ namespace mrpc
 
     io_state_t &operator=(io_state_t &&state) noexcept;
 
-    void set_coro_handle(std::experimental::coroutine_handle<> coro_handle) noexcept { coro_handle_ = coro_handle; }
-    auto get_coro_handle() noexcept { return coro_handle_; }
+    void set_coro_handle(std::experimental::coroutine_handle<> coro_handle) noexcept { _coro_handle = coro_handle; }
+    auto get_coro_handle() noexcept { return _coro_handle; }
     overlapped_t *get_overlapped() noexcept { return static_cast<overlapped_t *>(this); }
 
-    void set_error(error_code err) noexcept { error_ = err; }
-    error_code get_error() noexcept { return error_; }
+    void set_error(error_code err) noexcept { _error = err; }
+    error_code get_error() noexcept { return _error; }
 
     void io_completed(error_code ec, size_t bytes_transfer);
-    size_t bytes_transfer() { return bytes_transfer_; }
+    size_t bytes_transfer() { return _bytes_transfer; }
 
   private:
-    type_t type_;
-    error_code error_;
-    size_t bytes_transfer_;
-    std::experimental::coroutine_handle<> coro_handle_;
+    type_t _type;
+    error_code _error;
+    size_t _bytes_transfer;
+    std::experimental::coroutine_handle<> _coro_handle;
   };
 
   inline io_state_t::io_state_t(type_t t) noexcept : overlapped_t{0},
-                                                     type_(t),
-                                                     error_(error_code::INVLIAD),
-                                                     bytes_transfer_(0)
+                                                     _type(t),
+                                                     _error(error_code::INVLIAD),
+                                                     _bytes_transfer(0)
   {
   }
 
   inline io_state_t::io_state_t(io_state_t &&state) noexcept : overlapped_t{0},
-                                                               type_(state.type_),
-                                                               error_(state.error_),
-                                                               bytes_transfer_(state.bytes_transfer_),
-                                                               coro_handle_(state.coro_handle_)
+                                                               _type(state._type),
+                                                               _error(state._error),
+                                                               _bytes_transfer(state._bytes_transfer),
+                                                               _coro_handle(state._coro_handle)
   {
-    state.error_ = error_code::INVLIAD;
-    state.coro_handle_ = nullptr;
+    state._error = error_code::INVLIAD;
+    state._coro_handle = nullptr;
   }
 
   inline io_state_t &io_state_t::operator=(io_state_t &&state) noexcept
   {
-    type_ = state.type_;
-    error_ = state.error_;
-    bytes_transfer_ = std::move(state.bytes_transfer_);
-    coro_handle_ = std::move(state.coro_handle_);
+    _type = state._type;
+    _error = state._error;
+    _bytes_transfer = std::move(state._bytes_transfer);
+    _coro_handle = std::move(state._coro_handle);
     return *this;
   }
 
   inline void io_state_t::io_completed(error_code ec, size_t bytes_transfer)
   {
-    error_ = ec;
-    bytes_transfer_ = bytes_transfer;
+    _error = ec;
+    _bytes_transfer = bytes_transfer;
   }
 } // namespace mrpc

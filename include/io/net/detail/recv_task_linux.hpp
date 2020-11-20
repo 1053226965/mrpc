@@ -11,8 +11,8 @@ namespace mrpc::net::detail
   {
     using connection_t = connection_base_t<IO_CONTEXT>;
   public:
-    recv_task_t(connection_t &connection, buffer_t &buffer) noexcept : connection_(connection),
-                                                                            buffer_(buffer)
+    recv_task_t(connection_t &connection, buffer_t &buffer) noexcept : _connection(connection),
+                                                                            _buffer(buffer)
     {
     }
 
@@ -20,15 +20,15 @@ namespace mrpc::net::detail
 
     bool await_suspend(std::experimental::coroutine_handle<> handle)
     {
-      auto &io_state = connection_.get_recv_io_state();
+      auto &io_state = _connection.get_recv_io_state();
       io_state.set_error(error_code::IO_PENDING);
       io_state.set_coro_handle(handle);
-      return !connection_.socket()->notify_on_read(io_state);
+      return !_connection.socket()->notify_on_read(io_state);
     }
 
     size_t await_resume() noexcept
     {
-      auto &io_state = connection_.get_recv_io_state();
+      auto &io_state = _connection.get_recv_io_state();
       size_t total_size = 0;
 
       struct BUF
@@ -45,7 +45,7 @@ namespace mrpc::net::detail
         });
       };
 
-      get_buf(bufs, buffer_);
+      get_buf(bufs, _buffer);
       if (bufs[0].buf == nullptr)
       {
         io_state.set_error(error_code::NOBUFS);
@@ -57,7 +57,7 @@ namespace mrpc::net::detail
         int read_bytes = 0;
         do
         {
-          read_bytes = ::recv(connection_.socket()->handle(), bufs[0].buf, bufs[0].buf_len, 0);
+          read_bytes = ::recv(_connection.socket()->handle(), bufs[0].buf, bufs[0].buf_len, 0);
         } while (read_bytes < 0 && errno == EINTR);
         if (total_size > 0 && read_bytes <= 0)
         {
@@ -79,13 +79,13 @@ namespace mrpc::net::detail
           io_state.io_completed(error_code::CLOSED, 0);
           return total_size;
         }
-        buffer_.writer_goahead(read_bytes);
+        _buffer.writer_goahead(read_bytes);
         bufs[0].buf_len -= read_bytes;
         bufs[0].buf += read_bytes;
         total_size += read_bytes;
         if (bufs[0].buf_len == 0)
         {
-          get_buf(bufs, buffer_);
+          get_buf(bufs, _buffer);
           if (bufs[0].buf == nullptr)
           {
             io_state.io_completed(error_code::NONE_ERROR, total_size);
@@ -97,8 +97,8 @@ namespace mrpc::net::detail
     }
 
   private:
-    connection_t &connection_;
-    buffer_t &buffer_;
+    connection_t &_connection;
+    buffer_t &_buffer;
   };
 
 } // namespace mrpc::net::detail

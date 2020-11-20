@@ -76,14 +76,14 @@ namespace mrpc
         void return_void() noexcept {}
       };
       null_task_t(std::experimental::coroutine_handle<> handle) noexcept :
-        coroutine_(handle)
+        _coroutine(handle)
       {}
       ~null_task_t() noexcept
       {
-        if (coroutine_)
-          coroutine_.destroy();
+        if (_coroutine)
+          _coroutine.destroy();
       }
-      std::experimental::coroutine_handle<> coroutine_;
+      std::experimental::coroutine_handle<> _coroutine;
     };
 
     inline null_task_t new_null_task()
@@ -103,6 +103,6 @@ namespace mrpc
 
   inline auto noop_coroutine()
   {
-    return detail::null_task.coroutine_;
+    return detail::null_task._coroutine;
   }
 }

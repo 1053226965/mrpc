@@ -13,8 +13,8 @@ namespace mrpc::net::detail
   {
     using connection_t = connection_base_t<IO_CONTEXT>;
   public:
-    recv_task_t(connection_t &connection, buffer_t &buffer) noexcept : connection_(connection),
-                                                                            buffer_(buffer)
+    recv_task_t(connection_t &connection, buffer_t &buffer) noexcept : _connection(connection),
+                                                                            _buffer(buffer)
     {
     }
 
@@ -22,11 +22,11 @@ namespace mrpc::net::detail
 
     bool await_suspend(std::experimental::coroutine_handle<> handle)
     {
-      auto &state = connection_.get_recv_io_state();
+      auto &state = _connection.get_recv_io_state();
 
       DWORD bytes_transfer = 0;
       WSABUF bufs[max_chunk_count];
-      size_t bufs_size = buffer_.get_remain_buf_for_append(bufs, max_chunk_count,
+      size_t bufs_size = _buffer.get_remain_buf_for_append(bufs, max_chunk_count,
                                         [](WSABUF *nbuf, byte *ibuf, size_t len) {
                                           nbuf->buf = reinterpret_cast<char *>(ibuf);
                                           nbuf->len = static_cast<ULONG>(len);
@@ -35,7 +35,7 @@ namespace mrpc::net::detail
       state.set_coro_handle(handle);
       state.set_error(error_code::IO_PENDING);
       int result = ::WSARecv(
-          connection_.socket()->handle(),
+          _connection.socket()->handle(),
           bufs,
           static_cast<DWORD>(bufs_size), // buffer count
           &bytes_transfer,
@@ -47,13 +47,13 @@ namespace mrpc::net::detail
         int errorCode = ::WSAGetLastError();
         if (errorCode != WSA_IO_PENDING)
         {
-          DETAIL_LOG_ERROR("[recv] socket: {} error: {}", connection_.socket()->handle(),
+          DETAIL_LOG_ERROR("[recv] socket: {} error: {}", _connection.socket()->handle(),
                   get_sys_error_msg());
           state.set_error(error_code::SYSTEM_ERROR);
           return false;
         }
       }
-      else if (connection_.socket()->skip_compeletion_port_on_success())
+      else if (_connection.socket()->skip_compeletion_port_on_success())
       {
         M_ASSERT(result == 0);
         // state.io_completed(error_code::NONE_ERROR,
@@ -70,19 +70,19 @@ namespace mrpc::net::detail
 
     size_t await_resume() noexcept
     {
-      auto& state = connection_.get_recv_io_state();
+      auto& state = _connection.get_recv_io_state();
       if(state.bytes_transfer() == 0)
       {
         state.set_error(error_code::CLOSED);
         return 0;
       }
-      buffer_.writer_goahead(connection_.get_recv_io_state().bytes_transfer());
-      return connection_.get_recv_io_state().bytes_transfer();
+      _buffer.writer_goahead(_connection.get_recv_io_state().bytes_transfer());
+      return _connection.get_recv_io_state().bytes_transfer();
     }
 
   private:
-    connection_t &connection_;
-    buffer_t &buffer_;
+    connection_t &_connection;
+    buffer_t &_buffer;
   };
 } // namespace mrpc::net::detail
 

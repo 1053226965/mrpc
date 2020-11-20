@@ -12,26 +12,26 @@ namespace mrpc::detail
   }
 
   schedule_timer_t::schedule_timer_t(io_context_t &io_ctx,
-                                     milliseconds_t const &wait_time) noexcept : io_ctx_(io_ctx),
-                                                                                 timeout_point_(high_resolution_clock_t::now() + wait_time),
-                                                                                 schedule_task_(gen_schedule_task(io_ctx, this))
+                                     milliseconds_t const &wait_time) noexcept : _io_ctx(io_ctx),
+                                                                                 _timeout_point(high_resolution_clock_t::now() + wait_time),
+                                                                                 _schedule_task(gen_schedule_task(io_ctx, this))
   {
   }
 
   schedule_timer_t::schedule_timer_t(io_context_t &io_ctx,
                                      milliseconds_t const &wait_time,
-                                     timer_canceller_t &canceller) noexcept : io_ctx_(io_ctx),
-                                                                              timeout_point_(high_resolution_clock_t::now() + wait_time),
-                                                                              schedule_task_(gen_schedule_task(io_ctx, this)),
-                                                                              cancelled_(std::make_shared<std::atomic_bool>(0))
+                                     timer_canceller_t &canceller) noexcept : _io_ctx(io_ctx),
+                                                                              _timeout_point(high_resolution_clock_t::now() + wait_time),
+                                                                              _schedule_task(gen_schedule_task(io_ctx, this)),
+                                                                              _cancelled(std::make_shared<std::atomic_bool>(0))
   {
-    canceller.set(cancelled_);
+    canceller.set(_cancelled);
   }
 
-  schedule_timer_t::schedule_timer_t(schedule_timer_t &&timer) noexcept : io_ctx_(timer.io_ctx_),
-                                                                          timeout_point_(timer.timeout_point_),
-                                                                          croutine_(std::move(timer.croutine_)),
-                                                                          schedule_task_(std::move(timer.schedule_task_))
+  schedule_timer_t::schedule_timer_t(schedule_timer_t &&timer) noexcept : _io_ctx(timer._io_ctx),
+                                                                          _timeout_point(timer._timeout_point),
+                                                                          _croutine(std::move(timer._croutine)),
+                                                                          _schedule_task(std::move(timer._schedule_task))
   {
   }
 
@@ -42,7 +42,7 @@ namespace mrpc::detail
   std::experimental::coroutine_handle<> schedule_timer_t::await_suspend(
       std::experimental::coroutine_handle<> handle) noexcept
   {
-    croutine_ = handle;
-    return schedule_task_.get_handle();
+    _croutine = handle;
+    return _schedule_task.get_handle();
   }
 } // namespace mrpc::detail

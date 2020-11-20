@@ -32,7 +32,7 @@ namespace mrpc
 
       auto yield_value(value_type&& v) noexcept
       {
-        value_pointer_ = std::addressof(v);
+        _value_pointer = std::addressof(v);
         return std::experimental::suspend_always{};
       }
 
@@ -43,11 +43,11 @@ namespace mrpc
 
       T get() noexcept
       {
-        return std::forward<T>(*value_pointer_);
+        return std::forward<T>(*_value_pointer);
       }
 
     private:
-      value_type* value_pointer_;
+      value_type* _value_pointer;
       std::exception_ptr m_exception;
     };
 
@@ -59,12 +59,12 @@ namespace mrpc
       using handle_type = std::experimental::coroutine_handle<promise_type>;
 
       generator(handle_type h) noexcept:
-        coroutine_(h) {}
+        _coroutine(h) {}
 
       ~generator() noexcept
       {
-        if (coroutine_)
-          coroutine_.destroy(0);
+        if (_coroutine)
+          _coroutine.destroy(0);
       }
 
       T next()
@@ -73,7 +73,7 @@ namespace mrpc
       }
 
     private:
-      std::experimental::coroutine_handle<> coroutine_;
+      std::experimental::coroutine_handle<> _coroutine;
     };
   }
 

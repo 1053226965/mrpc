@@ -6,20 +6,20 @@ namespace mrpc
   thread_local thread_ctx* now_ctx = nullptr;
 
   thread_ctx::thread_ctx():
-    pre_ctx_(nullptr)
+    _pre_ctx(nullptr)
   {
     if (now_ctx)
     {
-      pre_ctx_ = now_ctx;
+      _pre_ctx = now_ctx;
     }
     now_ctx = this;
   }
 
   thread_ctx::~thread_ctx()
   {
-    if (pre_ctx_)
+    if (_pre_ctx)
     {
-      now_ctx = pre_ctx_;
+      now_ctx = _pre_ctx;
     }
     else
     {
@@ -30,17 +30,17 @@ namespace mrpc
   void thread_ctx::dispatch(ctx_call const& call)
   {
     M_ASSERT(now_ctx);
-    now_ctx->calls_.push(call);
+    now_ctx->_calls.push(call);
   }
 
   void thread_ctx::flush()
   {
     M_ASSERT(now_ctx);
-    while (!now_ctx->calls_.empty())
+    while (!now_ctx->_calls.empty())
     {
-      auto &call = now_ctx->calls_.front();
+      auto &call = now_ctx->_calls.front();
       call();
-      now_ctx->calls_.pop();
+      now_ctx->_calls.pop();
     }
   }
 }

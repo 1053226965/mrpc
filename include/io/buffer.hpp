@@ -22,28 +22,28 @@ namespace mrpc::detail
     struct chunk_t
     {
       chunk_t(T *buf, size_t s, size_t c) noexcept;
-      T *buffer_;
-      size_t size_;
-      size_t capacity_;
+      T *_buffer;
+      size_t _size;
+      size_t _capacity;
     };
 
     struct storage_t
     {
       storage_t(buffer_t &owner) noexcept;
       ~storage_t() noexcept;
-      buffer_t &owner_;
-      std::vector<chunk_t> chunks_;
-      size_t chunk_write_index_;
-      size_t write_offset_; // offset for chunks_[chunk_write_index_]
-      size_t chunk_read_index_;
-      size_t read_offset_;
+      buffer_t &_owner;
+      std::vector<chunk_t> _chunks;
+      size_t _chunk_write_index;
+      size_t _write_offset; // offset for _chunks[_chunk_write_index]
+      size_t _chunk_read_index;
+      size_t _read_offset;
     };
 
     buffer_t(allocator_type const &allocator = allocator_type());
     buffer_t(size_t size, allocator_type const &allocator = allocator_type());
     buffer_t(buffer_t const &buffer) noexcept;
     buffer_t(buffer_t &&buffer) noexcept;
-    ~buffer_t() noexcept { storage_ = nullptr; }
+    ~buffer_t() noexcept { _storage = nullptr; }
 
     buffer_t &operator=(buffer_t &&buffer) noexcept;
     buffer_t &operator=(buffer_t const &buffer) noexcept;
@@ -61,9 +61,9 @@ namespace mrpc::detail
 
     bool is_eof() noexcept;
     bool is_no_bufs() noexcept;
-    auto &back_chunk() { return storage_->chunks_[storage_->chunk_write_index_]; }
-    size_t chunks_size() const noexcept { return storage_->chunks_.size(); }
-    size_t remain_chunks_size() const noexcept { return storage_->chunks_.size() - storage_->chunk_write_index_; }
+    auto &back_chunk() { return _storage->_chunks[_storage->_chunk_write_index]; }
+    size_t chunks_size() const noexcept { return _storage->_chunks.size(); }
+    size_t remain_chunks_size() const noexcept { return _storage->_chunks.size() - _storage->_chunk_write_index; }
     size_t content_size() const noexcept;
     void clear() noexcept;
 
@@ -78,87 +78,87 @@ namespace mrpc::detail
     void deallocate(T *p, size_t capacity);
 
   private:
-    allocator_type allocator_;
-    std::shared_ptr<storage_t> storage_;
+    allocator_type _allocator;
+    std::shared_ptr<storage_t> _storage;
   };
 
   template <typename T, typename ALLOCATOR>
-  buffer_t<T, ALLOCATOR>::chunk_t::chunk_t(T *buf, size_t s, size_t c) noexcept : buffer_(buf),
-                                                                                  size_(s),
-                                                                                  capacity_(c)
+  buffer_t<T, ALLOCATOR>::chunk_t::chunk_t(T *buf, size_t s, size_t c) noexcept : _buffer(buf),
+                                                                                  _size(s),
+                                                                                  _capacity(c)
   {
   }
 
   template <typename T, typename ALLOCATOR>
   buffer_t<T, ALLOCATOR>::storage_t::storage_t(buffer_t &owner) noexcept
-      : owner_(owner),
-        chunk_write_index_(0),
-        write_offset_(0),
-        chunk_read_index_(0),
-        read_offset_(0)
+      : _owner(owner),
+        _chunk_write_index(0),
+        _write_offset(0),
+        _chunk_read_index(0),
+        _read_offset(0)
   {
   }
 
   template <typename T, typename ALLOCATOR>
   buffer_t<T, ALLOCATOR>::storage_t::~storage_t() noexcept
   {
-    for (auto &ck : chunks_)
+    for (auto &ck : _chunks)
     {
-      owner_.deallocate(ck.buffer_, ck.capacity_);
+      _owner.deallocate(ck._buffer, ck._capacity);
     }
   }
 
   template <typename T, typename ALLOCATOR>
-  buffer_t<T, ALLOCATOR>::buffer_t(allocator_type const &allocator) : allocator_(allocator),
-                                                                      storage_(std::make_shared<storage_t>(*this))
+  buffer_t<T, ALLOCATOR>::buffer_t(allocator_type const &allocator) : _allocator(allocator),
+                                                                      _storage(std::make_shared<storage_t>(*this))
   {
-    T *buf = allocator_.allocate(default_net_buffer_size);
+    T *buf = _allocator.allocate(default_net_buffer_size);
     if (buf == nullptr)
       throw std::bad_alloc();
-    storage_->chunks_.emplace_back(buf, 0, default_net_buffer_size);
+    _storage->_chunks.emplace_back(buf, 0, default_net_buffer_size);
   }
 
   template <typename T, typename ALLOCATOR>
   buffer_t<T, ALLOCATOR>::buffer_t(size_t size,
-                                   allocator_type const &allocator) : allocator_(allocator),
-                                                                      storage_(std::make_shared<storage_t>(*this))
+                                   allocator_type const &allocator) : _allocator(allocator),
+                                                                      _storage(std::make_shared<storage_t>(*this))
   {
     size_t count = 1;
     for (size_t i = 0; i < count; i++)
     {
-      T *buf = allocator_.allocate(size);
+      T *buf = _allocator.allocate(size);
       if (buf == nullptr)
         throw std::bad_alloc();
-      storage_->chunks_.emplace_back(buf, 0, size);
+      _storage->_chunks.emplace_back(buf, 0, size);
     }
   }
 
   template <typename T, typename ALLOCATOR>
-  inline buffer_t<T, ALLOCATOR>::buffer_t(buffer_t const &buffer) noexcept : allocator_(buffer.allocator_),
-                                                                             storage_(buffer.storage_)
+  inline buffer_t<T, ALLOCATOR>::buffer_t(buffer_t const &buffer) noexcept : _allocator(buffer._allocator),
+                                                                             _storage(buffer._storage)
 
   {
   }
 
   template <typename T, typename ALLOCATOR>
-  inline buffer_t<T, ALLOCATOR>::buffer_t(buffer_t &&buffer) noexcept : allocator_(std::move(buffer.allocator_)),
-                                                                        storage_(std::move(buffer.storage_))
+  inline buffer_t<T, ALLOCATOR>::buffer_t(buffer_t &&buffer) noexcept : _allocator(std::move(buffer._allocator)),
+                                                                        _storage(std::move(buffer._storage))
   {
   }
 
   template <typename T, typename ALLOCATOR>
   inline buffer_t<T, ALLOCATOR> &buffer_t<T, ALLOCATOR>::operator=(buffer_t const &buffer) noexcept
   {
-    // don't change allocator_, http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2016/p0337r0.html
-    storage_ = buffer.storage_;
+    // don't change _allocator, http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2016/p0337r0.html
+    _storage = buffer._storage;
     return *this;
   }
 
   template <typename T, typename ALLOCATOR>
   inline buffer_t<T, ALLOCATOR> &buffer_t<T, ALLOCATOR>::operator=(buffer_t &&buffer) noexcept
   {
-    // don't change allocator_, http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2016/p0337r0.html
-    storage_ = std::move(buffer.storage_);
+    // don't change _allocator, http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2016/p0337r0.html
+    _storage = std::move(buffer._storage);
     return *this;
   }
 
@@ -170,32 +170,32 @@ namespace mrpc::detail
 
     const char *p = s.data();
     const char *end = s.data() + s.length();
-    size_t i = storage_->chunk_write_index_;
-    size_t offset = storage_->write_offset_;
-    for (; i < storage_->chunks_.size() && p != end; i++)
+    size_t i = _storage->_chunk_write_index;
+    size_t offset = _storage->_write_offset;
+    for (; i < _storage->_chunks.size() && p != end; i++)
     {
-      T *buf = storage_->chunks_[i].buffer_ + offset;
-      size_t cs = mrpc::min_v(storage_->chunks_[i].capacity_ - offset,
+      T *buf = _storage->_chunks[i]._buffer + offset;
+      size_t cs = mrpc::min_v(_storage->_chunks[i]._capacity - offset,
                               static_cast<size_t>(end - p));
       memcpy(buf, p, cs);
       p += cs;
-      storage_->chunks_[i].size_ += cs;
+      _storage->_chunks[i]._size += cs;
       offset = 0;
     }
 
     if (p != end)
     {
       size_t rs = end - p;
-      T *buf = allocator_.allocate(rs);
+      T *buf = _allocator.allocate(rs);
       if (buf == nullptr)
         throw std::bad_alloc();
       memcpy(buf, p, rs);
-      storage_->chunks_.emplace_back(buf, rs, rs);
-      i = storage_->chunks_.size() - 1;
+      _storage->_chunks.emplace_back(buf, rs, rs);
+      i = _storage->_chunks.size() - 1;
     }
 
-    storage_->chunk_write_index_ = (i != storage_->chunks_.size() ? i : storage_->chunks_.size() - 1);
-    storage_->write_offset_ = storage_->chunks_[storage_->chunk_write_index_].size_;
+    _storage->_chunk_write_index = (i != _storage->_chunks.size() ? i : _storage->_chunks.size() - 1);
+    _storage->_write_offset = _storage->_chunks[_storage->_chunk_write_index]._size;
   }
 
   template <typename T, typename ALLOCATOR>
@@ -204,9 +204,9 @@ namespace mrpc::detail
     if (buf == nullptr)
       return;
     M_ASSERT(is_no_bufs());
-    storage_->chunks_.emplace_back(buf, len, capacity);
-    storage_->chunk_write_index_ = storage_->chunks_.size() - 1;
-    storage_->write_offset_ = len;
+    _storage->_chunks.emplace_back(buf, len, capacity);
+    _storage->_chunk_write_index = _storage->_chunks.size() - 1;
+    _storage->_write_offset = len;
   }
 
   template <typename T, typename ALLOCATOR>
@@ -215,20 +215,20 @@ namespace mrpc::detail
   {
     if (is_no_bufs())
     {
-      T *buf = allocator_.allocate(default_net_buffer_size);
+      T *buf = _allocator.allocate(default_net_buffer_size);
       if (buf == nullptr)
         throw std::bad_alloc();
       own_buf(buf, 0, default_net_buffer_size);
     }
     size_t ret = 0;
-    size_t end = mrpc::min_v(storage_->chunk_write_index_ + len, storage_->chunks_.size());
-    for (size_t i = storage_->chunk_write_index_; i < end; i++)
+    size_t end = mrpc::min_v(_storage->_chunk_write_index + len, _storage->_chunks.size());
+    for (size_t i = _storage->_chunk_write_index; i < end; i++)
     {
-      if (i != storage_->chunk_write_index_)
-        func(&array[i - storage_->chunk_write_index_], storage_->chunks_[i].buffer_, storage_->chunks_[i].capacity_);
+      if (i != _storage->_chunk_write_index)
+        func(&array[i - _storage->_chunk_write_index], _storage->_chunks[i]._buffer, _storage->_chunks[i]._capacity);
       else
-        func(&array[i - storage_->chunk_write_index_], storage_->chunks_[i].buffer_ + storage_->write_offset_,
-             storage_->chunks_[i].capacity_ - storage_->write_offset_);
+        func(&array[i - _storage->_chunk_write_index], _storage->_chunks[i]._buffer + _storage->_write_offset,
+             _storage->_chunks[i]._capacity - _storage->_write_offset);
       ret++;
     }
     return ret;
@@ -239,14 +239,14 @@ namespace mrpc::detail
   size_t buffer_t<T, ALLOCATOR>::append_remain_msg_to_array(BUF_ARRAY &&array, size_t len, FUNC &&func)
   {
     size_t ret = 0;
-    size_t end = mrpc::min_v(storage_->chunk_read_index_ + len, storage_->chunk_write_index_ + 1);
-    for (size_t i = storage_->chunk_read_index_; i < end; i++)
+    size_t end = mrpc::min_v(_storage->_chunk_read_index + len, _storage->_chunk_write_index + 1);
+    for (size_t i = _storage->_chunk_read_index; i < end; i++)
     {
-      if (i != storage_->chunk_read_index_)
-        func(&array[i - storage_->chunk_read_index_], storage_->chunks_[i].buffer_, storage_->chunks_[i].size_);
+      if (i != _storage->_chunk_read_index)
+        func(&array[i - _storage->_chunk_read_index], _storage->_chunks[i]._buffer, _storage->_chunks[i]._size);
       else
-        func(&array[i - storage_->chunk_read_index_], storage_->chunks_[i].buffer_ + storage_->read_offset_,
-             storage_->chunks_[i].size_ - storage_->read_offset_);
+        func(&array[i - _storage->_chunk_read_index], _storage->_chunks[i]._buffer + _storage->_read_offset,
+             _storage->_chunks[i]._size - _storage->_read_offset);
       ret++;
     }
     return ret;
@@ -255,7 +255,7 @@ namespace mrpc::detail
   template <typename T, typename ALLOCATOR>
   inline void buffer_t<T, ALLOCATOR>::for_each(std::function<void(chunk_t &ck)> const &func)
   {
-    for (auto &ck : storage_->chunks_)
+    for (auto &ck : _storage->_chunks)
     {
       func(ck);
     }
@@ -264,22 +264,22 @@ namespace mrpc::detail
   template <typename T, typename ALLOCATOR>
   inline void buffer_t<T, ALLOCATOR>::writer_goahead(size_t bytes) noexcept
   {
-    size_t i = storage_->chunk_write_index_;
-    for (; i < storage_->chunks_.size() && bytes > 0; i++)
+    size_t i = _storage->_chunk_write_index;
+    for (; i < _storage->_chunks.size() && bytes > 0; i++)
     {
-      auto &ck = storage_->chunks_[i];
-      size_t can_append_size = mrpc::min_v(bytes, ck.capacity_ - ck.size_);
-      ck.size_ += can_append_size;
+      auto &ck = _storage->_chunks[i];
+      size_t can_append_size = mrpc::min_v(bytes, ck._capacity - ck._size);
+      ck._size += can_append_size;
       bytes -= can_append_size;
     }
-    storage_->chunk_write_index_ = (i != storage_->chunks_.size() ? i : storage_->chunks_.size() - 1);
-    storage_->write_offset_ = storage_->chunks_[storage_->chunk_write_index_].size_;
+    _storage->_chunk_write_index = (i != _storage->_chunks.size() ? i : _storage->_chunks.size() - 1);
+    _storage->_write_offset = _storage->_chunks[_storage->_chunk_write_index]._size;
     
-    if(storage_->write_offset_ == storage_->chunks_[storage_->chunk_write_index_].capacity_ && 
-      storage_->chunk_write_index_ < storage_->chunks_.size() - 1)
+    if(_storage->_write_offset == _storage->_chunks[_storage->_chunk_write_index]._capacity && 
+      _storage->_chunk_write_index < _storage->_chunks.size() - 1)
     {
-      storage_->chunk_write_index_++;
-      storage_->write_offset_ = 0;
+      _storage->_chunk_write_index++;
+      _storage->_write_offset = 0;
     }
   }
 
@@ -288,59 +288,59 @@ namespace mrpc::detail
   {
     for (;;)
     {
-      auto &ck = storage_->chunks_[storage_->chunk_read_index_];
-      size_t can_forward_size = mrpc::min_v(bytes, ck.size_ - storage_->read_offset_);
+      auto &ck = _storage->_chunks[_storage->_chunk_read_index];
+      size_t can_forward_size = mrpc::min_v(bytes, ck._size - _storage->_read_offset);
       bytes -= can_forward_size;
       if (bytes > 0)
       {
-        if (storage_->chunk_read_index_ == storage_->chunk_write_index_)
+        if (_storage->_chunk_read_index == _storage->_chunk_write_index)
         {
-          storage_->read_offset_ += can_forward_size;
+          _storage->_read_offset += can_forward_size;
           break;
         }
         else
         {
-          storage_->chunk_read_index_++;
+          _storage->_chunk_read_index++;
           continue;
         }
       }
       else // bytes == 0
       {
-        storage_->read_offset_ += can_forward_size;
+        _storage->_read_offset += can_forward_size;
         break;
       }
     }
 
-    if(storage_->read_offset_ == storage_->chunks_[storage_->chunk_read_index_].size_ && 
-      storage_->chunk_read_index_ < storage_->chunk_write_index_)
+    if(_storage->_read_offset == _storage->_chunks[_storage->_chunk_read_index]._size && 
+      _storage->_chunk_read_index < _storage->_chunk_write_index)
     {
-      storage_->chunk_read_index_++;
-      storage_->read_offset_ = 0;
+      _storage->_chunk_read_index++;
+      _storage->_read_offset = 0;
     }
   }
 
   template <typename T, typename ALLOCATOR>
   inline bool buffer_t<T, ALLOCATOR>::is_eof() noexcept
   {
-    return storage_->chunk_read_index_ == storage_->chunk_write_index_ &&
-           storage_->read_offset_ == storage_->write_offset_;
+    return _storage->_chunk_read_index == _storage->_chunk_write_index &&
+           _storage->_read_offset == _storage->_write_offset;
   }
 
   template <typename T, typename ALLOCATOR>
   inline bool buffer_t<T, ALLOCATOR>::is_no_bufs() noexcept
   {
-    return storage_->chunk_write_index_ == storage_->chunks_.size() ||
-           (storage_->chunk_write_index_ == storage_->chunks_.size() - 1 &&
-               storage_->write_offset_ == storage_->chunks_[storage_->chunk_write_index_].capacity_);
+    return _storage->_chunk_write_index == _storage->_chunks.size() ||
+           (_storage->_chunk_write_index == _storage->_chunks.size() - 1 &&
+               _storage->_write_offset == _storage->_chunks[_storage->_chunk_write_index]._capacity);
   }
 
   template <typename T, typename ALLOCATOR>
   inline size_t buffer_t<T, ALLOCATOR>::content_size() const noexcept
   {
     size_t ret = 0;
-    for (size_t i = 0; i <= storage_->chunk_write_index_; i++)
+    for (size_t i = 0; i <= _storage->_chunk_write_index; i++)
     {
-      ret += storage_->chunks_[i].size_;
+      ret += _storage->_chunks[i]._size;
     }
     return ret;
   }
@@ -348,37 +348,37 @@ namespace mrpc::detail
   template <typename T, typename ALLOCATOR>
   inline void buffer_t<T, ALLOCATOR>::clear() noexcept
   {
-    for (auto &ck : storage_->chunks_)
+    for (auto &ck : _storage->_chunks)
     {
-      ck.size_ = 0;
+      ck._size = 0;
     }
-    storage_->chunk_write_index_ = 0;
-    storage_->write_offset_ = 0;
-    storage_->chunk_read_index_ = 0;
-    storage_->read_offset_ = 0;
+    _storage->_chunk_write_index = 0;
+    _storage->_write_offset = 0;
+    _storage->_chunk_read_index = 0;
+    _storage->_read_offset = 0;
   }
 
   template <typename T, typename ALLOCATOR>
   inline void buffer_t<T, ALLOCATOR>::go_to_start() noexcept
   {
-    storage_->chunk_read_index_ = 0;
-    storage_->read_offset_ = 0;
+    _storage->_chunk_read_index = 0;
+    _storage->_read_offset = 0;
   }
 
   template <typename T, typename ALLOCATOR>
   inline void buffer_t<T, ALLOCATOR>::go_to_end() noexcept
   {
-    storage_->chunk_read_index_ = storage_->chunk_write_index_;
-    storage_->read_offset_ = storage_->write_offset_;
+    _storage->_chunk_read_index = _storage->_chunk_write_index;
+    _storage->_read_offset = _storage->_write_offset;
   }
 
   template <typename T, typename ALLOCATOR>
   inline std::string buffer_t<T, ALLOCATOR>::to_string()
   {
     std::string ret;
-    for (size_t i = 0; i <= storage_->chunk_write_index_; i++)
+    for (size_t i = 0; i <= _storage->_chunk_write_index; i++)
     {
-      ret.append(storage_->chunks_[i].buffer_, storage_->chunks_[i].buffer_ + storage_->chunks_[i].size_);
+      ret.append(_storage->_chunks[i]._buffer, _storage->_chunks[i]._buffer + _storage->_chunks[i]._size);
     }
     return ret;
   }
@@ -387,12 +387,12 @@ namespace mrpc::detail
   inline std::string buffer_t<T, ALLOCATOR>::remain_string()
   {
     std::string ret;
-    for (size_t i = storage_->chunk_read_index_; i <= storage_->chunk_write_index_; i++)
+    for (size_t i = _storage->_chunk_read_index; i <= _storage->_chunk_write_index; i++)
     {
-      if (i != storage_->chunk_read_index_)
-        ret.append(storage_->chunks_[i].buffer_, storage_->chunks_[i].buffer_ + storage_->chunks_[i].size_);
+      if (i != _storage->_chunk_read_index)
+        ret.append(_storage->_chunks[i]._buffer, _storage->_chunks[i]._buffer + _storage->_chunks[i]._size);
       else
-        ret.append(storage_->chunks_[i].buffer_ + storage_->read_offset_, storage_->chunks_[i].buffer_ + storage_->chunks_[i].size_);
+        ret.append(_storage->_chunks[i]._buffer + _storage->_read_offset, _storage->_chunks[i]._buffer + _storage->_chunks[i]._size);
     }
     return ret;
   }
@@ -400,13 +400,13 @@ namespace mrpc::detail
   template <typename T, typename ALLOCATOR>
   inline T *buffer_t<T, ALLOCATOR>::allocate(size_t capacity)
   {
-    return allocator_.allocate(capacity);
+    return _allocator.allocate(capacity);
   }
 
   template <typename T, typename ALLOCATOR>
   inline void buffer_t<T, ALLOCATOR>::deallocate(T *p, size_t capacity)
   {
-    allocator_.deallocate(p, capacity);
+    _allocator.deallocate(p, capacity);
   }
 
 } // namespace mrpc::detail

@@ -11,29 +11,29 @@ namespace mrpc::net::detail
     using io_context_type = IO_CONTEXT;
     using connection_t = connection_base_t<IO_CONTEXT>;
   public:
-    connect_task_t(io_context_type &io_ctx, endpoint_t const &e) noexcept : io_ctx_(io_ctx),
-                                                                            remote_endpoint_(e)
+    connect_task_t(io_context_type &io_ctx, endpoint_t const &e) noexcept : _io_ctx(io_ctx),
+                                                                            _remote_endpoint(e)
     {
     }
 
     bool await_ready() noexcept
     {
-      new_connection_.get_recv_io_state().set_error(error_code::INVLIAD);
+      _new_connection.get_recv_io_state().set_error(error_code::INVLIAD);
       return false;
     }
 
     bool await_suspend(std::experimental::coroutine_handle<> handle)
     {
-      auto &new_con_state = new_connection_.get_recv_io_state();
-      M_ASSERT(!new_connection_.valid());
-      if (remote_endpoint_.is_v4())
+      auto &new_con_state = _new_connection.get_recv_io_state();
+      M_ASSERT(!_new_connection.valid());
+      if (_remote_endpoint.is_v4())
       {
-        new_connection_.own_socket(
+        _new_connection.own_socket(
             socket_t(socket_t::af_inet, socket_t::sock_stream, socket_t::default_protocol));
       }
-      else if (remote_endpoint_.is_v6())
+      else if (_remote_endpoint.is_v6())
       {
-        new_connection_.own_socket(
+        _new_connection.own_socket(
             socket_t(socket_t::af_inet6, socket_t::sock_stream, socket_t::default_protocol));
       }
 
@@ -42,7 +42,7 @@ namespace mrpc::net::detail
         GUID connectExGuid = WSAID_CONNECTEX;
         DWORD byteCount = 0;
         int result = ::WSAIoctl(
-            new_connection_.socket()->handle(),
+            _new_connection.socket()->handle(),
             SIO_GET_EXTENSION_FUNCTION_POINTER,
             static_cast<void *>(&connectExGuid),
             sizeof(connectExGuid),
@@ -59,16 +59,16 @@ namespace mrpc::net::detail
         }
       }
 
-      new_connection_.socket()->bind_addr(std::string_view("0.0.0.0:0"));
-      new_connection_.attach_to_io_ctx(&io_ctx_);
+      _new_connection.socket()->bind_addr(std::string_view("0.0.0.0:0"));
+      _new_connection.attach_to_io_ctx(&_io_ctx);
 
       DWORD bytes_send;
       new_con_state.set_coro_handle(handle);
       new_con_state.set_error(error_code::IO_PENDING);
       const BOOL ok = connectExPtr(
-          static_cast<SOCKET>(new_connection_.socket()->handle()),
-          reinterpret_cast<const SOCKADDR *>(remote_endpoint_.get_sockaddr()),
-          static_cast<int>(remote_endpoint_.addr_len()),
+          static_cast<SOCKET>(_new_connection.socket()->handle()),
+          reinterpret_cast<const SOCKADDR *>(_remote_endpoint.get_sockaddr()),
+          static_cast<int>(_remote_endpoint.addr_len()),
           nullptr, // send buffer
           0,       // size of send buffer
           &bytes_send,
@@ -82,7 +82,7 @@ namespace mrpc::net::detail
           new_con_state.set_error(error_code::SYSTEM_ERROR);
         }
       }
-      else if (new_connection_.socket()->skip_compeletion_port_on_success())
+      else if (_new_connection.socket()->skip_compeletion_port_on_success())
       {
         //new_con_state.set_error(error_code::NONE_ERROR);
         //return false;
@@ -93,19 +93,19 @@ namespace mrpc::net::detail
 
     connection_t await_resume()
     {
-      if (new_connection_.get_recv_io_state().get_error() == error_code::NONE_ERROR)
+      if (_new_connection.get_recv_io_state().get_error() == error_code::NONE_ERROR)
       {
-        setsockopt(new_connection_.socket()->handle(),
+        setsockopt(_new_connection.socket()->handle(),
                      SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0);
         SOCKADDR_STORAGE localSockaddr;
         int nameLength = sizeof(localSockaddr);
         int result = ::getsockname(
-            new_connection_.socket()->handle(),
+            _new_connection.socket()->handle(),
             reinterpret_cast<SOCKADDR *>(&localSockaddr),
             &nameLength);
         if (result == 0)
         {
-          new_connection_.socket()->set_local_endpoint(
+          _new_connection.socket()->set_local_endpoint(
               *reinterpret_cast<const sockaddr *>(&localSockaddr));
         }
         else
@@ -116,28 +116,28 @@ namespace mrpc::net::detail
         SOCKADDR_STORAGE remoteSockaddr;
         nameLength = sizeof(remoteSockaddr);
         result = ::getpeername(
-            new_connection_.socket()->handle(),
+            _new_connection.socket()->handle(),
             reinterpret_cast<SOCKADDR *>(&remoteSockaddr),
             &nameLength);
         if (result == 0)
         {
-          new_connection_.socket()->set_remote_endpoint(
+          _new_connection.socket()->set_remote_endpoint(
               *reinterpret_cast<const sockaddr *>(&localSockaddr));
         }
         else
         {
            DETAIL_LOG_ERROR("[connect] error {}", get_sys_error_msg());
         }
-        DETAIL_LOG_INFO("[connect] connected {}", new_connection_.socket()->handle());
-        return std::move(new_connection_);
+        DETAIL_LOG_INFO("[connect] connected {}", _new_connection.socket()->handle());
+        return std::move(_new_connection);
       }
       return connection_t();
     }
 
   private:
-    io_context_type &io_ctx_;
-    endpoint_t remote_endpoint_;
-    connection_t new_connection_;
+    io_context_type &_io_ctx;
+    endpoint_t _remote_endpoint;
+    connection_t _new_connection;
   };
 
 } // namespace mrpc::net::detail
