@@ -22,7 +22,15 @@ namespace mrpc
 #ifdef OS_WIN
 
     using recv_task_t = detail::recv_task_t<io_context_t>;
-    using send_task_t = detail::send_task_t<io_context_t>;
+    //using send_task_t = detail::send_task_t<io_context_t>;
+    
+    template <typename BUFFER>
+    inline task_t<size_t> send_task_t(connection_t &connection, BUFFER &&buffer)
+    {
+      co_await connection.send_strand_task();
+      connection.socket()->skip_compeletion_port_on_success();
+      co_return co_await detail::send_task_t<io_context_t>(connection, std::forward<BUFFER>(buffer));
+    }
 
 #elif defined(OS_GNU_LINUX)
 

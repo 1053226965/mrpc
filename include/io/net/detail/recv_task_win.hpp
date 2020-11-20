@@ -34,26 +34,31 @@ namespace mrpc::net::detail
       DWORD flags = 0;
       state.set_coro_handle(handle);
       state.set_error(error_code::IO_PENDING);
+      const bool skip_on_success = _connection.socket()->skip_compeletion_port_on_success();
+      socket_handle_t sock_handle = _connection.socket()->handle();
       int result = ::WSARecv(
-          _connection.socket()->handle(),
+          sock_handle,
           bufs,
           static_cast<DWORD>(bufs_size), // buffer count
           &bytes_transfer,
           &flags, // flags
           state.get_overlapped(),
           nullptr);
+          
+      /* 注意，不能在下面代码再使用this的成员变量。
+         因为WSARecv投递异步操作后，会在其他线程唤醒coroutine */
       if (result == SOCKET_ERROR)
       {
         int errorCode = ::WSAGetLastError();
         if (errorCode != WSA_IO_PENDING)
         {
-          DETAIL_LOG_ERROR("[recv] socket: {} error: {}", _connection.socket()->handle(),
+          DETAIL_LOG_ERROR("[recv] socket: {} error: {}", sock_handle,
                   get_sys_error_msg());
-          state.set_error(error_code::SYSTEM_ERROR);
+          //state.set_error(error_code::SYSTEM_ERROR); // 待改，有线程安全问题
           return false;
         }
       }
-      else if (_connection.socket()->skip_compeletion_port_on_success())
+      else if (skip_on_success)
       {
         M_ASSERT(result == 0);
         // state.io_completed(error_code::NONE_ERROR,

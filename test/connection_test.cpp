@@ -166,6 +166,7 @@ TEST_CASE("many connections")
         {
           shared_ptr<connection_t> pc = make_shared<connection_t>(std::move(new_con));
           as.spawn(send_task(pc));
+          as.spawn(send_task(pc));
           as.spawn(recv_task(pc));
           if (++c >= connections_count)
             break;
