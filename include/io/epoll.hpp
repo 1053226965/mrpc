@@ -5,10 +5,10 @@
 #include <experimental/coroutine>
 #include "io/io_state.hpp"
 #include "io/net/socket.hpp"
+#include "io/buffer.hpp"
 #include "common/platform.hpp"
 #include "common/time/types.hpp"
-#include "common/concurrentqueue.h"
-#include "buffer.hpp"
+#include "concurrentqueue.h"
 
 #ifdef OS_GNU_LINUX
 

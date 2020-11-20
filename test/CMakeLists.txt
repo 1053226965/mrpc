@@ -4,6 +4,7 @@
 project(mrpc) # 项目名称
 
 include_directories("${PROJECT_SOURCE_DIR}/../include" 
+  "${PROJECT_SOURCE_DIR}/../third_party/concurrentqueue" 
   "${PROJECT_SOURCE_DIR}/../third_party/spdlog/include" 
   "${PROJECT_SOURCE_DIR}/../third_party/fmtlib/include")
 

@@ -1,4 +1,5 @@
 #pragma once
+#include "common/coroutine/strand_task.hpp"
 #include "io/net/socket.hpp"
 #include "io/io_state.hpp"
 
@@ -21,8 +22,11 @@ namespace mrpc::net::detail
     void own_socket(socket_t &&s) noexcept { _socket = std::make_shared<socket_t>(std::move(s)); }
     error_code attach_to_io_ctx(IO_CONTEXT *io_ctx);
 
-    io_state_t &get_recv_io_state() { return _recv_io_state; }
-    io_state_t &get_send_io_state() { return _send_io_state; }
+    io_state_t &get_recv_io_state() noexcept { return _recv_io_state; }
+    io_state_t &get_send_io_state() noexcept { return _send_io_state; }
+
+    strand_task_t &send_strand_task() noexcept { return _send_strand_task; }
+
     bool valid() noexcept { return _socket && _socket->valid(); }
     void shutdown_wr() noexcept;
     void close() noexcept;
@@ -32,6 +36,7 @@ namespace mrpc::net::detail
     std::shared_ptr<socket_t> _socket;
     io_state_t _recv_io_state;
     io_state_t _send_io_state;
+    strand_task_t _send_strand_task;
   };
 
   template <typename IO_CONTEXT>

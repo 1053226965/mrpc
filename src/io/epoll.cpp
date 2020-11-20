@@ -7,9 +7,6 @@
 
 namespace mrpc::detail
 {
-  static uintptr_t wakeup_event = 0;
-  static uintptr_t corout_event = 1;
-
   thread_local high_resolution_clock_t::time_point epoll_t::_next_timeout_point = high_resolution_clock_t::now();
 
   bool set_nonblocking(socket_handle_t fd, bool not_blocked)
