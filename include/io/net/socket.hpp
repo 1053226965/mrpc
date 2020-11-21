@@ -149,7 +149,18 @@ namespace mrpc::net
     {
       return error_code::BIND_ERROR;
     }
-    set_local_endpoint(*e.get_sockaddr());
+    
+    sockaddr_storage localSockaddr;
+    socklen_t nameLength = sizeof(localSockaddr);
+    int result = ::getsockname(_handle, reinterpret_cast<sockaddr *>(&localSockaddr), &nameLength);
+    if (result == 0)
+    {
+      set_local_endpoint(*reinterpret_cast<const sockaddr *>(&localSockaddr));
+    }
+    else
+    {
+      set_local_endpoint(*e.get_sockaddr());
+    }
     return error_code::NONE_ERROR;
   }
 
@@ -159,7 +170,7 @@ namespace mrpc::net
     if (valid())
     {
       OK = shutdown(_handle, SHUT_WR) == 0;
-      if(!OK)
+      if (!OK)
       {
         DETAIL_LOG_WARN("[socket] failed to shutdown write {} {}", handle(), get_sys_error_msg());
       }
@@ -169,11 +180,11 @@ namespace mrpc::net
 
   inline bool socket_t::shutdown_rd() noexcept
   {
-   bool OK = false;
+    bool OK = false;
     if (valid())
     {
       OK = shutdown(_handle, SHUT_RD) == 0;
-      if(!OK)
+      if (!OK)
       {
         DETAIL_LOG_WARN("[socket] failed to shutdown write {} {}", handle(), get_sys_error_msg());
       }

@@ -72,55 +72,57 @@ TEST_CASE("many connections")
     return ret;
   };
 
+  io_context_t io_ctx(10);
+  io_thread_pool_t pool(io_ctx, 4);
+  acceptor_t acceptor(io_ctx, std::string_view("0.0.0.0:1235"));
+  REQUIRE(acceptor.valid());
+  async_scope_t as;
+
   auto loop_client = [&](io_context_t *io_ctx, char const *addr) {
-    thread([&, io_ctx, addr]() {
-      while (!ready_to_connect)
-        ;
+    while (!ready_to_connect)
+    {
+    }
+    auto con = sync_wait([&]() -> task_t<connection_t> {
+      co_return co_await connect_task_t(*io_ctx, std::string_view(addr));
+    }());
 
-      auto con = sync_wait([&]() -> task_t<connection_t> {
-        co_return co_await connect_task_t(*io_ctx, std::string_view(addr));
-      }());
-      REQUIRE(con.valid());
-      auto send_task = [&]() -> task_t<void> {
-        while (true)
+    REQUIRE(con.valid());
+    shared_ptr<connection_t> pc = make_shared<connection_t>(std::move(con));
+    auto send_task = [&](shared_ptr<connection_t> pcon) -> task_t<void> {
+      co_await io_ctx->schedule();
+      while (true)
+      {
+        buffer_t sb;
+        sb.append(random_string());
+        size_t sl = co_await send_task_t(*pcon, sb);
+        total_send2 += sl;
+        if (total_send2 >= 1024 * 1024 * 100)
         {
-          buffer_t sb;
-          calloc(1024,1);
-          sb.append(random_string());
-          size_t sl = co_await send_task_t(con, sb);
-          total_send2 += sl;
-          if (total_send2 >= 1024 * 1024 * 100)
-          {
-            con.shutdown_wr();
-            break;
-          }
+          con.shutdown_wr();
+          break;
         }
-        co_return;
-      };
+      }
+      co_return;
+    };
 
-      auto recv_task = [&]() -> task_t<void> {
-        while (true)
-        {
-          buffer_t rb(2048);
-          size_t rl = co_await recv_task_t(con, rb);
-          total_recv2 += rl;
-          if (con.get_recv_io_state().get_error() == mrpc::error_code::CLOSED)
-            break;
-        }
-        co_return;
-      };
+    auto recv_task = [&](shared_ptr<connection_t> pcon) -> task_t<void> {
+      co_await io_ctx->schedule();
+      while (true)
+      {
+        buffer_t rb(2048);
+        size_t rl = co_await recv_task_t(*pcon, rb);
+        total_recv2 += rl;
+        if (con.get_recv_io_state().get_error() == mrpc::error_code::CLOSED)
+          break;
+      }
+      co_return;
+    };
 
-      sync_wait(when_all(send_task(), recv_task()));
-    }).detach();
+    as.spawn(send_task(pc));
+    as.spawn(recv_task(pc));
   };
 
   auto loop_send_recv = [&]() {
-    io_context_t io_ctx(10);
-    io_thread_pool_t pool(io_ctx, 4);
-
-    acceptor_t acceptor(io_ctx, std::string_view("0.0.0.0:1235"));
-    REQUIRE(acceptor.valid());
-
     auto send_task = [&](shared_ptr<connection_t> con) -> task_t<void> {
       co_await io_ctx.schedule();
       while (con->valid())
@@ -152,7 +154,6 @@ TEST_CASE("many connections")
       co_return;
     };
 
-    async_scope_t as;
     const int connections_count = 3;
     auto accept_task = [&]() -> task_t<void> {
       ready_to_connect = true;
@@ -174,8 +175,11 @@ TEST_CASE("many connections")
       }
       co_return;
     };
-    for (int i = 0; i < connections_count; i++)
-      loop_client(&io_ctx, "127.0.0.1:1235");
+
+    thread([&loop_client, &io_ctx]() {
+      for (int i = 0; i < connections_count; i++)
+        loop_client(&io_ctx, "127.0.0.1:1235");
+    }).detach();
 
     sync_wait(accept_task());
     sync_wait(as.join());
