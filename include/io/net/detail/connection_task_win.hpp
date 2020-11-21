@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "io/net/detail/connection_base.hpp"
 
 #ifdef OS_WIN
@@ -65,6 +65,8 @@ namespace mrpc::net::detail
       DWORD bytes_send;
       new_con_state.set_coro_handle(handle);
       new_con_state.set_error(error_code::IO_PENDING);
+      const bool skip_on_success = _new_connection.socket()->skip_compeletion_port_on_success();
+
       const BOOL ok = connectExPtr(
           static_cast<SOCKET>(_new_connection.socket()->handle()),
           reinterpret_cast<const SOCKADDR *>(_remote_endpoint.get_sockaddr()),
@@ -73,6 +75,9 @@ namespace mrpc::net::detail
           0,       // size of send buffer
           &bytes_send,
           new_con_state.get_overlapped());
+
+      /* 注意，不能在下面代码再使用this的成员变量。
+         因为WSARecv投递异步操作后，也许，会在其他线程唤醒coroutine, this也许会被销毁 */
       if (!ok)
       {
         const int errorCode = ::WSAGetLastError();
@@ -80,9 +85,10 @@ namespace mrpc::net::detail
         {
           DETAIL_LOG_ERROR("[connect] error {}", get_sys_error_msg());
           new_con_state.set_error(error_code::SYSTEM_ERROR);
+          return false;
         }
       }
-      else if (_new_connection.socket()->skip_compeletion_port_on_success())
+      else if (skip_on_success)
       {
         //new_con_state.set_error(error_code::NONE_ERROR);
         //return false;

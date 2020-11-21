@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include "io/net/detail/connection_base.hpp"
 #include "io/buffer.hpp"
 
@@ -35,6 +35,7 @@ namespace mrpc::net::detail
       state.set_error(error_code::IO_PENDING);
       const bool skip_on_success = _connection.socket()->skip_compeletion_port_on_success();
       socket_handle_t sock_handle = _connection.socket()->handle();
+      
       int result = ::WSASend(
           sock_handle,
           bufs,
@@ -44,8 +45,8 @@ namespace mrpc::net::detail
           state.get_overlapped(),
           nullptr);
 
-      /* ×¢Òâ£¬²»ÄÜÔÚÏÂÃæ´úÂëÔÙÊ¹ÓÃthisµÄ³ÉÔ±±äÁ¿¡£
-         ÒòÎªWSASendÍ¶µİÒì²½²Ù×÷ºó£¬»áÔÚÆäËûÏß³Ì»½ĞÑcoroutine */
+      /* æ³¨æ„ï¼Œä¸èƒ½åœ¨ä¸‹é¢ä»£ç å†ä½¿ç”¨thisçš„æˆå‘˜å˜é‡ã€‚
+         å› ä¸ºWSARecvæŠ•é€’å¼‚æ­¥æ“ä½œåï¼Œä¹Ÿè®¸ï¼Œä¼šåœ¨å…¶ä»–çº¿ç¨‹å”¤é†’coroutine, thisä¹Ÿè®¸ä¼šè¢«é”€æ¯ */
       if (result == SOCKET_ERROR)
       {
         int errorCode = ::WSAGetLastError();
@@ -53,13 +54,13 @@ namespace mrpc::net::detail
         {
           DETAIL_LOG_ERROR("[send] socket: {} error: {}", sock_handle,
                   get_sys_error_msg());
-          //state.set_error(error_code::SYSTEM_ERROR); // ´ı¸Ä£¬ÓĞÏß³Ì°²È«ÎÊÌâ
+          state.set_error(error_code::SYSTEM_ERROR);
           return false;
         }
       }
       else if (skip_on_success)
       {
-        // skip_on_success²»ÉúĞ§£¨Ô­ÒòÎ´Öª£©£¬ËùÒÔiocp»áÍ¨Öª
+        // skip_on_successä¸ç”Ÿæ•ˆï¼ˆåŸå› æœªçŸ¥ï¼‰ï¼Œæ‰€ä»¥iocpä¼šé€šçŸ¥
         M_ASSERT(result == 0);
         // state.io_completed(error_code::NONE_ERROR,
         //                    static_cast<size_t>(bytes_transfer));

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "io/io_state.hpp"
 #include "io/buffer.hpp"
 
@@ -27,7 +27,8 @@ namespace mrpc
     template <typename BUFFER>
     inline task_t<size_t> send_task_t(connection_t &connection, BUFFER &&buffer)
     {
-      co_await connection.send_strand_task();
+      auto scope_mtx = connection.get_scope_mutex_for_sending(); // 保证并发co_await send_task_t情况下，一个buffer接着一个buffer发
+      co_await raii_mtx;
       connection.socket()->skip_compeletion_port_on_success();
       co_return co_await detail::send_task_t<io_context_t>(connection, std::forward<BUFFER>(buffer));
     }
@@ -48,7 +49,8 @@ namespace mrpc
     template <typename BUFFER>
     inline task_t<size_t> send_task_t(connection_t &connection, BUFFER &&buffer)
     {
-      co_await connection.send_strand_task(); // 保证并发co_await send_task_t情况下，一个buffer接着一个buffer发
+      auto scope_mtx = connection.get_scope_mutex_for_sending(); // 保证并发co_await send_task_t情况下，一个buffer接着一个buffer发
+      co_await scope_mtx;
 
       auto task = detail::send_task_t<io_context_t>(connection, std::forward<BUFFER>(buffer));
       size_t total = 0;

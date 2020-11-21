@@ -6,7 +6,6 @@ namespace mrpc
   {
     INVLIAD,
     NONE_ERROR,
-    ACCEPT_ERROR,
     BIND_ERROR,
     SYSTEM_ERROR,
     IO_PENDING,

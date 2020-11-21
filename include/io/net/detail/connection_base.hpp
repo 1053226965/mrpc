@@ -1,5 +1,5 @@
 #pragma once
-#include "common/coroutine/strand_task.hpp"
+#include "common/coroutine/coro_mutex.hpp"
 #include "io/net/socket.hpp"
 #include "io/io_state.hpp"
 
@@ -25,10 +25,10 @@ namespace mrpc::net::detail
     io_state_t &get_recv_io_state() noexcept { return _recv_io_state; }
     io_state_t &get_send_io_state() noexcept { return _send_io_state; }
 
-    strand_task_t &send_strand_task() noexcept { return _send_strand_task; }
+    auto get_scope_mutex_for_sending() noexcept { return std::move(_send_strand_mtx.scope_mutex()); }
 
     bool valid() noexcept { return _socket && _socket->valid(); }
-    void shutdown_wr() noexcept;
+    bool shutdown_wr() noexcept;
     void close() noexcept;
 
   private:
@@ -36,7 +36,7 @@ namespace mrpc::net::detail
     std::shared_ptr<socket_t> _socket;
     io_state_t _recv_io_state;
     io_state_t _send_io_state;
-    strand_task_t _send_strand_task;
+    coro_mutex_t _send_strand_mtx;
   };
 
   template <typename IO_CONTEXT>
@@ -80,12 +80,13 @@ namespace mrpc::net::detail
   }
 
   template <typename IO_CONTEXT>
-  inline void connection_base_t<IO_CONTEXT>::shutdown_wr() noexcept
+  inline bool connection_base_t<IO_CONTEXT>::shutdown_wr() noexcept
   {
     if (_socket)
     {
-      _socket->shutdown_wr();
+      return _socket->shutdown_wr(); 
     }
+    return false;
   }
 
   template <typename IO_CONTEXT>

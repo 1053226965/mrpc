@@ -123,7 +123,7 @@ TEST_CASE("many connections")
 
     auto send_task = [&](shared_ptr<connection_t> con) -> task_t<void> {
       co_await io_ctx.schedule();
-      while (true)
+      while (con->valid())
       {
         buffer_t sb;
         sb.append(random_string());
@@ -131,7 +131,6 @@ TEST_CASE("many connections")
         total_send1 += sl;
         if (total_send1 >= 1024 * 1024 * 100)
         {
-          con->shutdown_wr();
           break;
         }
       }
@@ -165,6 +164,7 @@ TEST_CASE("many connections")
         if (acceptor.get_recv_io_state().get_error() == mrpc::error_code::NONE_ERROR)
         {
           shared_ptr<connection_t> pc = make_shared<connection_t>(std::move(new_con));
+          as.spawn(send_task(pc));
           as.spawn(send_task(pc));
           as.spawn(send_task(pc));
           as.spawn(recv_task(pc));

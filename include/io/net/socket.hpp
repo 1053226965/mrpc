@@ -59,8 +59,8 @@ namespace mrpc::net
 
     error_code bind_addr(endpoint_t const &e) noexcept;
 
-    void shutdown_wr() noexcept;
-    void shutdown_rd() noexcept;
+    bool shutdown_wr() noexcept;
+    bool shutdown_rd() noexcept;
     void close() noexcept;
 
 #ifdef OS_WIN
@@ -153,20 +153,32 @@ namespace mrpc::net
     return error_code::NONE_ERROR;
   }
 
-  inline void socket_t::shutdown_wr() noexcept
+  inline bool socket_t::shutdown_wr() noexcept
   {
+    bool OK = false;
     if (valid())
     {
-      shutdown(_handle, SHUT_WR);
+      OK = shutdown(_handle, SHUT_WR) == 0;
+      if(!OK)
+      {
+        DETAIL_LOG_WARN("[socket] failed to shutdown write {} {}", handle(), get_sys_error_msg());
+      }
     }
+    return OK;
   }
 
-  inline void socket_t::shutdown_rd() noexcept
+  inline bool socket_t::shutdown_rd() noexcept
   {
+   bool OK = false;
     if (valid())
     {
-      shutdown(_handle, SHUT_RD);
+      OK = shutdown(_handle, SHUT_RD) == 0;
+      if(!OK)
+      {
+        DETAIL_LOG_WARN("[socket] failed to shutdown write {} {}", handle(), get_sys_error_msg());
+      }
     }
+    return OK;
   }
 
   inline void socket_t::close() noexcept

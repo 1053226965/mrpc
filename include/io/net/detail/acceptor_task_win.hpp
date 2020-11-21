@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "io/net/connection.hpp"
 #include "io/net/detail/acceptor_base.hpp"
 
@@ -27,15 +27,18 @@ namespace mrpc::net::detail
 
     bool await_suspend(std::experimental::coroutine_handle<> handle)
     {
+      auto &acceptor_state = _acceptor.get_recv_io_state();
       DWORD bytes_transfer = 0;
       auto const &lsockt = *_acceptor.socket();
       auto &new_con = _result_connection;
       auto &new_con_state = _result_connection.get_recv_io_state();
       new_con.own_socket(socket_t(lsockt.get_socket_detail()));
       memset(_address_buffer, 0, sizeof(_address_buffer));
-      _acceptor.get_recv_io_state().set_coro_handle(handle);
-      _acceptor.get_recv_io_state().set_error(error_code::IO_PENDING);
-      BOOL ok = _acceptor.get_accept_func()(
+      acceptor_state.set_coro_handle(handle);
+      acceptor_state.set_error(error_code::IO_PENDING);
+      const bool skip_on_success = lsockt.skip_compeletion_port_on_success();
+
+      const BOOL ok = _acceptor.get_accept_func()(
           _acceptor.socket()->handle(),
           new_con.socket()->handle(),
           _address_buffer,
@@ -43,21 +46,25 @@ namespace mrpc::net::detail
           sizeof(_address_buffer) / 2,
           sizeof(_address_buffer) / 2,
           &bytes_transfer,
-          _acceptor.get_recv_io_state().get_overlapped());
+          acceptor_state.get_overlapped());
+
+      /* 注意，不能在下面代码再使用this的成员变量。
+         因为WSARecv投递异步操作后，也许，会在其他线程唤醒coroutine, this也许会被销毁 */
       if (!ok)
       {
         int ec = ::WSAGetLastError();
         if (ec != ERROR_IO_PENDING)
         {
           DETAIL_LOG_ERROR("[accept] error {}", get_sys_error_msg());
-          _acceptor.get_recv_io_state().set_error(error_code::ACCEPT_ERROR);
+          acceptor_state.set_error(error_code::SYSTEM_ERROR);
           return false;
         }
       }
-      else if (_acceptor.socket()->skip_compeletion_port_on_success())
+      else if (skip_on_success)
       {
-        _acceptor.get_recv_io_state().set_error(error_code::NONE_ERROR);
-        return false;
+        //acceptor_state.set_error(error_code::NONE_ERROR);
+        //return false;
+        return true;
       }
       return true;
     }

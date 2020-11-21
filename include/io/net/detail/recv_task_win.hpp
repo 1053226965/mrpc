@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <experimental/coroutine>
 #include "io/net/detail/connection_base.hpp"
@@ -36,6 +36,7 @@ namespace mrpc::net::detail
       state.set_error(error_code::IO_PENDING);
       const bool skip_on_success = _connection.socket()->skip_compeletion_port_on_success();
       socket_handle_t sock_handle = _connection.socket()->handle();
+
       int result = ::WSARecv(
           sock_handle,
           bufs,
@@ -46,7 +47,7 @@ namespace mrpc::net::detail
           nullptr);
           
       /* 注意，不能在下面代码再使用this的成员变量。
-         因为WSARecv投递异步操作后，会在其他线程唤醒coroutine */
+         因为WSARecv投递异步操作后，也许，会在其他线程唤醒coroutine, this也许会被销毁 */
       if (result == SOCKET_ERROR)
       {
         int errorCode = ::WSAGetLastError();
@@ -54,7 +55,7 @@ namespace mrpc::net::detail
         {
           DETAIL_LOG_ERROR("[recv] socket: {} error: {}", sock_handle,
                   get_sys_error_msg());
-          //state.set_error(error_code::SYSTEM_ERROR); // 待改，有线程安全问题
+          state.set_error(error_code::SYSTEM_ERROR); 
           return false;
         }
       }

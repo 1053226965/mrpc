@@ -68,10 +68,10 @@ namespace mrpc
 
       auto result() noexcept
       {
+        M_ASSERT(_type != result_type::empty);
         if (_type == result_type::exception) {
           std::rethrow_exception(_excetion_ptr);
         }
-        M_ASSERT(_type == result_type::value);
         return std::forward<T>(_value);
       }
 
