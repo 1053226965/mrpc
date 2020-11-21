@@ -9,26 +9,8 @@
 using namespace std;
 using namespace mrpc;
 
-struct A
-{
-  ~A()
-  {
-    printf("~A\n");
-  }
-};
-
-task_t<void> func(A &a)
-{
-  co_await std::experimental::suspend_always();
-}
-
 int main(int argc, char **argv)
 {
-  {
-    A a;
-    auto b = func(a);
-  }
-  printf("A\n");
   init_g_logger();
 
   doctest::Context context;
