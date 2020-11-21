@@ -34,7 +34,7 @@ namespace mrpc::detail
       buffer_t &_owner;
       std::vector<chunk_t> _chunks;
       size_t _chunk_write_index;
-      size_t _write_offset; // offset for _chunks[_chunk_write_index]
+      size_t _write_offset; // offset abourt _chunks[_chunk_write_index]
       size_t _chunk_read_index;
       size_t _read_offset;
     };
@@ -49,18 +49,30 @@ namespace mrpc::detail
     buffer_t &operator=(buffer_t const &buffer) noexcept;
 
     void append(std::string_view const &s);
-    void own_buf(T *buf, size_t len, size_t capacity);
 
-    template <typename BUF_ARRAY, typename FUNC> // FUNC(BUF*, T*, size_t)
+    /* 将剩余空间append到array里 
+     * @param array: buf array
+     * @param func: FUNC(BUF*, T*, size_t) */
+    template <typename BUF_ARRAY, typename FUNC>
     size_t get_remain_buf_for_append(BUF_ARRAY &&array, size_t len, FUNC &&func);
-    template <typename BUF_ARRAY, typename FUNC> // FUNC(BUF*, T*, size_t)
+
+    /* 将剩余未读内容append到array里
+     * @param array: buf array
+     * @param func: FUNC(BUF*, T*, size_t) */
+    template <typename BUF_ARRAY, typename FUNC>
     size_t append_remain_msg_to_array(BUF_ARRAY &&array, size_t len, FUNC &&func);
+
+    /* 写指针前移，跟get_remain_buf_for_append配合使用 */
     void writer_goahead(size_t bytes) noexcept;
+
+    /* 读指针前移，跟append_remain_msg_to_array配合使用 */
     void reader_goahead(size_t bytes) noexcept;
+
     void for_each(std::function<void(chunk_t &ck)> const &func);
 
     bool is_eof() noexcept;
     bool is_no_bufs() noexcept;
+
     auto &back_chunk() { return _storage->_chunks[_storage->_chunk_write_index]; }
     size_t chunks_size() const noexcept { return _storage->_chunks.size(); }
     size_t remain_chunks_size() const noexcept { return _storage->_chunks.size() - _storage->_chunk_write_index; }
@@ -74,6 +86,7 @@ namespace mrpc::detail
     std::string to_string();
 
   private:
+    void own_buf(T *buf, size_t len, size_t capacity);
     T *allocate(size_t capacity);
     void deallocate(T *p, size_t capacity);
 
