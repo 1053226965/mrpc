@@ -13,6 +13,16 @@ using namespace std;
 using namespace mrpc;
 using namespace mrpc::net;
 
+auto random_string = []() -> string {
+  string ret;
+  ret.resize((rand() % 2048) + 1024);
+  for (int i = 0; i < ret.size(); i++)
+  {
+    ret[i] = (rand() % 26) + 'a';
+  }
+  return ret;
+};
+
 TEST_SUITE_BEGIN("connection test");
 
 TEST_CASE("hello world")
@@ -62,34 +72,25 @@ TEST_CASE("many connections")
   atomic_size_t total_send2 = 0, total_recv2 = 0;
   atomic_bool ready_to_connect = false;
 
-  auto random_string = []() -> string {
-    string ret;
-    ret.resize((rand() % 2048) + 1024);
-    for (int i = 0; i < ret.size(); i++)
-    {
-      ret[i] = (rand() % 26) + 'a';
-    }
-    return ret;
-  };
-
   io_context_t io_ctx(10);
   io_thread_pool_t pool(io_ctx, 4);
   acceptor_t acceptor(io_ctx, std::string_view("0.0.0.0:1235"));
   REQUIRE(acceptor.valid());
   async_scope_t as;
 
-  auto loop_client = [&](io_context_t *io_ctx, char const *addr) {
+  auto loop_client = [&](char const *addr) {
     while (!ready_to_connect)
     {
     }
-    auto con = sync_wait([&]() -> task_t<connection_t> {
-      co_return co_await connect_task_t(*io_ctx, std::string_view(addr));
-    }());
+    auto con = sync_wait([](io_context_t& io_ctx, char const *addr) -> task_t<connection_t> {
+      co_return co_await connect_task_t(io_ctx, std::string_view(addr));
+    }(io_ctx, addr));
 
     REQUIRE(con.valid());
     shared_ptr<connection_t> pc = make_shared<connection_t>(std::move(con));
-    auto send_task = [&](shared_ptr<connection_t> pcon) -> task_t<void> {
-      co_await io_ctx->schedule();
+
+    auto send_task = [](io_context_t &io_ctx, atomic_size_t& total_send2, shared_ptr<connection_t> pcon) -> task_t<void> {
+      co_await io_ctx.schedule();
       while (true)
       {
         buffer_t sb;
@@ -98,28 +99,28 @@ TEST_CASE("many connections")
         total_send2 += sl;
         if (total_send2 >= 1024 * 1024 * 100)
         {
-          con.shutdown_wr();
+          pcon->shutdown_wr();
           break;
         }
       }
       co_return;
     };
 
-    auto recv_task = [&](shared_ptr<connection_t> pcon) -> task_t<void> {
-      co_await io_ctx->schedule();
+    auto recv_task = [&](io_context_t& io_ctx, atomic_size_t& total_recv2, shared_ptr<connection_t> pcon) -> task_t<void> {
+      co_await io_ctx.schedule();
       while (true)
       {
         buffer_t rb(2048);
         size_t rl = co_await recv_task_t(*pcon, rb);
         total_recv2 += rl;
-        if (con.get_recv_io_state().get_error() == mrpc::error_code::CLOSED)
+        if (pcon->get_recv_io_state().get_error() == mrpc::error_code::CLOSED)
           break;
       }
       co_return;
     };
 
-    as.spawn(send_task(pc));
-    as.spawn(recv_task(pc));
+    as.spawn(send_task(io_ctx, total_send2, pc));
+    as.spawn(recv_task(io_ctx, total_recv2, pc));
   };
 
   auto loop_send_recv = [&]() {
@@ -176,9 +177,9 @@ TEST_CASE("many connections")
       co_return;
     };
 
-    thread([&loop_client, &io_ctx]() {
+    thread([&loop_client]() {
       for (int i = 0; i < connections_count; i++)
-        loop_client(&io_ctx, "127.0.0.1:1235");
+        loop_client("127.0.0.1:1235");
     }).detach();
 
     sync_wait(accept_task());
