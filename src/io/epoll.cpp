@@ -41,7 +41,7 @@ namespace mrpc::detail
     _epoll.schedule_coroutine(handle);
   }
 
-  epoll_t::epoll_t(size_t concurrencyHint) : _thread_state(0), _event_fd(-1)
+  epoll_t::epoll_t(size_t concurrencyHint) : _event_fd(-1), _thread_state(0)
   {
     /* FD_CLOEXEC, close-on-exec */
     _epoll_fd = epoll_create1(EPOLL_CLOEXEC);
@@ -49,20 +49,6 @@ namespace mrpc::detail
     {
       throw_system_error("create epoll");
     }
-
-    // if (pipe2(_wakeup_fds, O_CLOEXEC) == -1)
-    // {
-    //   throw_system_error("create pipe");
-    // }
-    // set_nonblocking(_wakeup_fds[0], true);
-    // set_nonblocking(_wakeup_fds[1], true);
-    // epoll_event ev;
-    // ev.events = static_cast<uint32_t>(EPOLLIN | EPOLLET);
-    // ev.data.ptr = &_wakeup_fds[0];
-    // if (!add_fd(_wakeup_fds[0], ev))
-    // {
-    //   throw_system_error("add wakeup fd");
-    // }
 
     reset_event_fd();
   }
@@ -199,7 +185,7 @@ namespace mrpc::detail
       del_fd(_event_fd);
       close(_event_fd);
     }
-    _event_fd = eventfd(0, EFD_SEMAPHORE);
+    _event_fd = eventfd(0, EFD_SEMAPHORE | EFD_CLOEXEC);
     if (_event_fd == -1)
     {
        throw_system_error("can't create event_fd");
@@ -274,6 +260,7 @@ namespace mrpc::detail
     {
       for (int i = 0; i < r; ++i)
       {
+        // wakeup events
         if (evs[i].data.ptr == &_event_fd)
         {
           uint64_t semaphore_v;
@@ -292,6 +279,7 @@ namespace mrpc::detail
             }
           }
         }
+        // io events
         else
         {
           handle_event(evs[i]);
