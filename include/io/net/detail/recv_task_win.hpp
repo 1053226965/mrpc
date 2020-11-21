@@ -8,13 +8,14 @@
 
 namespace mrpc::net::detail
 {
-  template<typename IO_CONTEXT>
+  template <typename IO_CONTEXT>
   class recv_task_t
   {
     using connection_t = connection_base_t<IO_CONTEXT>;
+
   public:
     recv_task_t(connection_t &connection, buffer_t &buffer) noexcept : _connection(connection),
-                                                                            _buffer(buffer)
+                                                                       _buffer(buffer)
     {
     }
 
@@ -27,10 +28,10 @@ namespace mrpc::net::detail
       DWORD bytes_transfer = 0;
       WSABUF bufs[max_chunk_count];
       size_t bufs_size = _buffer.get_remain_buf_for_append(bufs, max_chunk_count,
-                                        [](WSABUF *nbuf, byte *ibuf, size_t len) {
-                                          nbuf->buf = reinterpret_cast<char *>(ibuf);
-                                          nbuf->len = static_cast<ULONG>(len);
-                                        });
+                                                           [](WSABUF *nbuf, byte *ibuf, size_t len) {
+                                                             nbuf->buf = reinterpret_cast<char *>(ibuf);
+                                                             nbuf->len = static_cast<ULONG>(len);
+                                                           });
       DWORD flags = 0;
       state.set_coro_handle(handle);
       state.set_error(error_code::IO_PENDING);
@@ -45,7 +46,7 @@ namespace mrpc::net::detail
           &flags, // flags
           state.get_overlapped(),
           nullptr);
-          
+
       /* 注意，不能在下面代码再使用this的成员变量。
          因为WSARecv投递异步操作后，也许，会在其他线程唤醒coroutine, this也许会被销毁 */
       if (result == SOCKET_ERROR)
@@ -54,8 +55,8 @@ namespace mrpc::net::detail
         if (errorCode != WSA_IO_PENDING)
         {
           DETAIL_LOG_ERROR("[recv] socket: {} error: {}", sock_handle,
-                  get_sys_error_msg());
-          state.set_error(error_code::SYSTEM_ERROR); 
+                           get_sys_error_msg());
+          state.set_error(error_code::SYSTEM_ERROR);
           return false;
         }
       }
@@ -76,8 +77,8 @@ namespace mrpc::net::detail
 
     size_t await_resume() noexcept
     {
-      auto& state = _connection.get_recv_io_state();
-      if(state.bytes_transfer() == 0)
+      auto &state = _connection.get_recv_io_state();
+      if (state.bytes_transfer() == 0)
       {
         state.set_error(error_code::CLOSED);
         return 0;

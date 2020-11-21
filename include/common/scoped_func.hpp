@@ -1,34 +1,41 @@
 #pragma once
 #include <memory>
+#include <tuple>
 
 namespace mrpc
 {
-  template<typename FUNC>
+  template<typename FUNC, typename...ARGS>
   class scoped_func_t
   {
     scoped_func_t(scoped_func_t const&) = delete;
     scoped_func_t& operator=(scoped_func_t const&) = delete;
 
-  public:
-    using function_type = FUNC;
+    template<size_t... INDICES>
+    void invoke(std::integer_sequence<size_t, INDICES...>)
+    {
+      _func(std::get<INDICES>(_params)...);
+    }
 
-    template<typename FUNC2>
-    scoped_func_t(FUNC2&& func) noexcept :
-      _func(std::forward<FUNC2>(func))
+  public:
+  
+    scoped_func_t(FUNC&& func, ARGS&...args) noexcept :
+      _func(std::forward<FUNC>(func)),
+      _params(std::make_tuple(std::forward<ARGS>(args)...))
     {}
 
     ~scoped_func_t() noexcept
     {
-      _func();
+      invoke(std::make_integer_sequence<size_t, sizeof...(ARGS)>());
     }
 
   private:
-    function_type _func;
+    FUNC _func;
+    std::tuple<ARGS...> _params;
   };
 
-  template<typename FUNC>
-  scoped_func_t<FUNC> exec_on_exit(FUNC&& func)
+  template<typename FUNC, typename...ARGS>
+  auto exec_on_exit(FUNC&& func, ARGS&&...args)
   {
-    return scoped_func_t<FUNC>(std::forward<FUNC>(func));
+    return scoped_func_t(std::forward<FUNC>(func), std::forward<ARGS>(args)...);
   }
 }

@@ -104,6 +104,7 @@
     "xtree": "cpp",
     "xutility": "cpp",
     "xlocbuf": "cpp",
-    "xlocmes": "cpp"
+    "xlocmes": "cpp",
+    "resumable": "cpp"
   }
 }

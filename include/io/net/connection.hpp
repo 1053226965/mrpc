@@ -28,8 +28,7 @@ namespace mrpc
     inline task_t<size_t> send_task_t(connection_t &connection, BUFFER &&buffer)
     {
       auto scope_mtx = connection.get_scope_mutex_for_sending(); // 保证并发co_await send_task_t情况下，一个buffer接着一个buffer发
-      co_await raii_mtx;
-      connection.socket()->skip_compeletion_port_on_success();
+      co_await scope_mtx;
       co_return co_await detail::send_task_t<io_context_t>(connection, std::forward<BUFFER>(buffer));
     }
 

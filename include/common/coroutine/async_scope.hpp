@@ -30,12 +30,16 @@ namespace mrpc
     template <typename AWAITABLE>
     void spawn(AWAITABLE &&awaitable)
     {
-      [this](std::decay_t<AWAITABLE> awaitable) -> no_block_task {
-        spawn_one();
-        auto guard = exec_on_exit([this]() { one_done(); });
+      [](async_scope_t *scope, std::decay_t<AWAITABLE> awaitable) -> no_block_task {
+        scope->spawn_one();
+
+        auto guard = exec_on_exit([](async_scope_t *scope) {
+          scope->one_done();
+        }, scope);
+        
         (void)(guard);
         co_await awaitable;
-      }(std::forward<AWAITABLE>(awaitable));
+      }(this, std::forward<AWAITABLE>(awaitable));
     }
 
     auto join()
