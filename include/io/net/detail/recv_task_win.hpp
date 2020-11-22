@@ -19,7 +19,11 @@ namespace mrpc::net::detail
     {
     }
 
-    bool await_ready() noexcept { return false; }
+    bool await_ready() noexcept
+    {
+      _connection.get_recv_io_state().set_error(error_code::INVLIAD);
+      return false;
+    }
 
     bool await_suspend(std::experimental::coroutine_handle<> handle)
     {

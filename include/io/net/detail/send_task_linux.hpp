@@ -68,7 +68,11 @@ namespace mrpc::net::detail
     {
     }
 
-    bool done() noexcept { return _buffer.is_eof(); }
+    bool done() noexcept
+    {
+      _connection.get_send_io_state().set_error(error_code::INVLIAD);
+      return _buffer.is_eof();
+    }
 
     bool await_ready() noexcept { return _buffer.is_eof(); }
 

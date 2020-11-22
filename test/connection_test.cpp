@@ -25,46 +25,46 @@ auto random_string = []() -> string {
 
 TEST_SUITE_BEGIN("connection test");
 
-TEST_CASE("hello world")
-{
-  io_context_t io_ctx(10);
-  io_thread_pool_t pool(io_ctx, 1);
+// TEST_CASE("connection hello world")
+// {
+//   io_context_t io_ctx(10);
+//   io_thread_pool_t pool(io_ctx, 1);
 
-  acceptor_t acceptor(io_ctx, std::string_view("0.0.0.0:1234"));
-  REQUIRE(acceptor.valid());
+//   acceptor_t acceptor(io_ctx, std::string_view("0.0.0.0:1234"));
+//   REQUIRE(acceptor.valid());
 
-  auto accept_task = [&]() -> task_t<void> {
-    connection_t new_con = co_await accept_task_t(io_ctx, acceptor);
-    REQUIRE(new_con.socket()->valid());
-    CHECK(acceptor.get_recv_io_state().get_error() == mrpc::error_code::NONE_ERROR);
-    buffer_t rbuf, sbuf;
-    auto rs = co_await recv_task_t(new_con, rbuf);
-    CHECK(rs == 5);
-    CHECK(new_con.get_recv_io_state().get_error() == mrpc::error_code::NONE_ERROR);
-    rbuf.go_to_start();
-    CHECK(rbuf.to_string() == "hello");
-    sbuf.append("world");
-    auto ss = co_await send_task_t(new_con, sbuf);
-    CHECK(ss == 5);
-    co_return;
-  };
+//   auto accept_task = [&]() -> task_t<void> {
+//     connection_t new_con = co_await accept_task_t(io_ctx, acceptor);
+//     REQUIRE(new_con.socket()->valid());
+//     CHECK(acceptor.get_recv_io_state().get_error() == mrpc::error_code::NONE_ERROR);
+//     buffer_t rbuf, sbuf;
+//     auto rs = co_await recv_task_t(new_con, rbuf);
+//     CHECK(rs == 5);
+//     CHECK(new_con.get_recv_io_state().get_error() == mrpc::error_code::NONE_ERROR);
+//     rbuf.go_to_start();
+//     CHECK(rbuf.to_string() == "hello");
+//     sbuf.append("world");
+//     auto ss = co_await send_task_t(new_con, sbuf);
+//     CHECK(ss == 5);
+//     co_return;
+//   };
 
-  auto connect_task = [&]() -> task_t<void> {
-    auto new_con = co_await connect_task_t(io_ctx, endpoint_t("127.0.0.1:1234"));
-    REQUIRE(new_con.valid());
-    buffer_t rbuf, sbuf;
-    sbuf.append("hello");
-    auto ss = co_await send_task_t(new_con, sbuf);
-    CHECK(ss == 5);
-    auto rs = co_await recv_task_t(new_con, rbuf);
-    CHECK(rs == 5);
-    rbuf.go_to_start();
-    CHECK(rbuf.to_string() == "world");
-    co_return;
-  };
+//   auto connect_task = [&]() -> task_t<void> {
+//     auto new_con = co_await connect_task_t(io_ctx, endpoint_t("127.0.0.1:1234"));
+//     REQUIRE(new_con.valid());
+//     buffer_t rbuf, sbuf;
+//     sbuf.append("hello");
+//     auto ss = co_await send_task_t(new_con, sbuf);
+//     CHECK(ss == 5);
+//     auto rs = co_await recv_task_t(new_con, rbuf);
+//     CHECK(rs == 5);
+//     rbuf.go_to_start();
+//     CHECK(rbuf.to_string() == "world");
+//     co_return;
+//   };
 
-  sync_wait(when_all(accept_task(), connect_task()));
-}
+//   sync_wait(when_all(accept_task(), connect_task()));
+// }
 
 TEST_CASE("many connections")
 {
@@ -107,6 +107,7 @@ TEST_CASE("many connections")
           break;
         }
       }
+      DETAIL_LOG_INFO("[test] client stop write {}", pcon->socket()->handle());
       co_return;
     };
 
@@ -117,9 +118,10 @@ TEST_CASE("many connections")
         buffer_t rb(2048);
         size_t rl = co_await recv_task_t(*pcon, rb); // 异步接收，接收成功或者连接被关闭唤醒
         total_recv2 += rl;
-        if (pcon->get_recv_io_state().get_error() == mrpc::error_code::CLOSED)
+        if (pcon->get_recv_io_state().get_error() != mrpc::error_code::NONE_ERROR)
           break;
       }
+      DETAIL_LOG_INFO("[test] client stop read {}", pcon->socket()->handle());
       co_return;
     };
 
@@ -130,6 +132,7 @@ TEST_CASE("many connections")
   auto loop_send_recv = [&]() {
     auto send_task = [&](shared_ptr<connection_t> con) -> task_t<void> {
       co_await io_ctx.schedule();
+      DETAIL_LOG_INFO("[test] server start write {}", con->socket()->handle());
       while (con->valid())
       {
         buffer_t sb;
@@ -141,6 +144,7 @@ TEST_CASE("many connections")
           break;
         }
       }
+      DETAIL_LOG_INFO("[test] server stop write {}", con->socket()->handle());
       co_return;
     };
 
@@ -152,11 +156,12 @@ TEST_CASE("many connections")
         buffer_t rb(2048);
         size_t rl = co_await recv_task_t(*con, rb);
         total_recv1 += rl;
-        if (con->get_recv_io_state().get_error() == mrpc::error_code::CLOSED)
+        if (con->get_recv_io_state().get_error() != mrpc::error_code::NONE_ERROR)
         {
           break;
         }
       }
+      DETAIL_LOG_INFO("[test] server stop read {}", con->socket()->handle());
       co_return;
     };
 
@@ -171,7 +176,7 @@ TEST_CASE("many connections")
         if (acceptor.get_recv_io_state().get_error() == mrpc::error_code::NONE_ERROR)
         {
           shared_ptr<connection_t> pc = make_shared<connection_t>(std::move(new_con));
-          as.spawn(send_task(pc)); // 起三个协程写。虽然协程间可能并发执行，但问题不大，因为发送是原子执行的。
+          as.spawn(send_task(pc)); // 起三个协程写。虽然协程间可能并发执行，但没问题，因为发送是原子执行的。
           as.spawn(send_task(pc)); // 不存在一个协程发一半，另一个协程接着发一半的情况。
           as.spawn(send_task(pc)); 
           as.spawn(recv_task(pc)); // 起一个协程读。不存在多个协程一起读，因为从逻辑上就讲不通。

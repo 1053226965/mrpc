@@ -6,17 +6,22 @@
 
 namespace mrpc::net::detail
 {
-  template<typename IO_CONTEXT>
+  template <typename IO_CONTEXT>
   class recv_task_t
   {
     using connection_t = connection_base_t<IO_CONTEXT>;
+
   public:
     recv_task_t(connection_t &connection, buffer_t &buffer) noexcept : _connection(connection),
-                                                                            _buffer(buffer)
+                                                                       _buffer(buffer)
     {
     }
 
-    bool await_ready() noexcept { return false; }
+    bool await_ready() noexcept
+    {
+      _connection.get_recv_io_state().set_error(error_code::INVLIAD);
+      return false;
+    }
 
     bool await_suspend(std::experimental::coroutine_handle<> handle)
     {

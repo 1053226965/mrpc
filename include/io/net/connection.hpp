@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include "io/io_state.hpp"
 #include "io/buffer.hpp"
+#include "common/scoped_func.hpp"
 
 #ifdef OS_WIN
 #include "io/net/detail/connection_task_win.hpp"
@@ -23,7 +24,7 @@ namespace mrpc
 
     using recv_task_t = detail::recv_task_t<io_context_t>;
     //using send_task_t = detail::send_task_t<io_context_t>;
-    
+
     template <typename BUFFER>
     inline task_t<size_t> send_task_t(connection_t &connection, BUFFER &&buffer)
     {
@@ -34,7 +35,7 @@ namespace mrpc
 
 #elif defined(OS_GNU_LINUX)
 
-    inline task_t<size_t> recv_task_t(connection_t &connection, buffer_t & buffer)
+    inline task_t<size_t> recv_task_t(connection_t &connection, buffer_t &buffer)
     {
       auto task = detail::recv_task_t<io_context_t>(connection, buffer);
       size_t total = 0;
@@ -59,7 +60,7 @@ namespace mrpc
       }
       co_return total;
     }
-    
+
 #endif
   } // namespace net
 } // namespace mrpc

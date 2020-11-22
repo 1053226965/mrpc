@@ -101,17 +101,17 @@ namespace mrpc::detail
       return error_code::SYSTEM_ERROR;
     }
     UCHAR completionModeFlags = FILE_SKIP_SET_EVENT_ON_HANDLE;
-    if (s->skip_compeletion_port_on_success())
-    {
-      completionModeFlags |= FILE_SKIP_COMPLETION_PORT_ON_SUCCESS;
-    }
-    // const BOOL ok = ::SetFileCompletionNotificationModes(
-    //     (HANDLE)s->handle(),
-    //     completionModeFlags);
-    // if (!ok)
+    // if (s->skip_compeletion_port_on_success())
     // {
-    //   // to do something. Maybe the socket shouldn't skip on success
+    //   completionModeFlags |= FILE_SKIP_COMPLETION_PORT_ON_SUCCESS;
     // }
+    const BOOL ok = ::SetFileCompletionNotificationModes(
+        (HANDLE)s->handle(),
+        completionModeFlags);
+    if (!ok)
+    {
+      // to do something. Maybe the socket shouldn't skip on success
+    }
     return error_code::NONE_ERROR;
   }
 
@@ -186,7 +186,8 @@ namespace mrpc::detail
       auto io_state = reinterpret_cast<io_state_t *>(overlapped);
       M_ASSERT(io_state->get_coro_handle());
       M_ASSERT(!io_state->get_coro_handle().done());
-      M_ASSERT(io_state->get_error() == error_code::IO_PENDING);
+      error_code state_error;
+      M_ASSERT((state_error = io_state->get_error()) == error_code::IO_PENDING);
       if (ok)
       {
         io_state->io_completed(error_code::NONE_ERROR,

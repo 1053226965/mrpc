@@ -18,7 +18,11 @@ namespace mrpc::net::detail
     {
     }
 
-    bool await_ready() noexcept { return false; }
+    bool await_ready() noexcept
+    {
+      _connection.get_send_io_state().set_error(error_code::INVLIAD);
+      return false;
+    }
 
     bool await_suspend(std::experimental::coroutine_handle<> coroutine)
     {
@@ -35,7 +39,7 @@ namespace mrpc::net::detail
       state.set_error(error_code::IO_PENDING);
       const bool skip_on_success = _connection.socket()->skip_compeletion_port_on_success();
       socket_handle_t sock_handle = _connection.socket()->handle();
-      
+
       int result = ::WSASend(
           sock_handle,
           bufs,
@@ -53,7 +57,7 @@ namespace mrpc::net::detail
         if (errorCode != WSA_IO_PENDING)
         {
           DETAIL_LOG_ERROR("[send] socket: {} error: {}", sock_handle,
-                  get_sys_error_msg());
+                           get_sys_error_msg());
           state.set_error(error_code::SYSTEM_ERROR);
           return false;
         }

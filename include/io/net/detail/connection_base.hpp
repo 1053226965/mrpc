@@ -30,7 +30,7 @@ namespace mrpc::net::detail
     bool valid() noexcept { return _socket && _socket->valid(); }
     bool shutdown_wr() noexcept;
     void close() noexcept;
-
+    
   private:
     IO_CONTEXT *_io_ctx = nullptr;
     std::shared_ptr<socket_t> _socket;

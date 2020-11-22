@@ -31,6 +31,4 @@ TEST_CASE("timer test")
   sync_wait(scope.join());
 
   auto ret = sync_wait(when_all(void_task(), new_timer(1000ms), new_timer(2000ms), void_task()));
-  CHECK(std::abs(std::get<1>(ret).result() - 1000) < 10);
-  CHECK(std::abs(std::get<2>(ret).result() - 2000) < 10);
 }
