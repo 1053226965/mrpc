@@ -4,6 +4,7 @@
 #include "common/coroutine/coro_mutex.hpp"
 #include "common/coroutine/sync_wait.hpp"
 #include "common/coroutine/async_scope.hpp"
+#include "common/coroutine/task.hpp"
 
 using namespace std;
 using namespace mrpc;
